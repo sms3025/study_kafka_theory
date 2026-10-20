@@ -1,7 +1,9 @@
-# Kafka Field Guide — 원리에서 실행까지
+# Kafka Field Guide: 원리에서 실행까지
 
-Kafka 입문자를 위한 **초급 → 중급 → 고급, 12개 단원**의 로컬 학습 자료입니다.
+Kafka 입문자를 위한 **초급 → 중급 → 고급, 12개 단원 + 부록 3개**의 로컬 학습 자료입니다.
 이론의 개념·SVG 흐름도·단계별 재생·코드 해설을 먼저 읽고, 같은 번호의 실습 안내에 따라 Java 코드를 실행합니다.
+
+각 단원은 **왜 배우는지 → 비유 → 핵심 개념 → 예시와 시간순 시나리오 → 비교표 → 함께 알아둘 개념 → 핵심 정리** 순서로 설명하고, 실습 명령마다 **출력 예시와 결과 해석**을, 단원 끝에는 **로그 수집 파이프라인에 적용하는 방법**과 **자주 묻는 질문**을 붙였습니다.
 
 **시작:** [이론 학습 페이지](이론/index.html)를 브라우저로 열거나, 저장소의 `index.html`을 더블 클릭하세요.
 HTML은 외부 CDN·웹 폰트·서버 없이 열립니다. 인터넷은 Docker 이미지와 Maven 의존성을 처음 받을 때 필요합니다.
@@ -14,6 +16,9 @@ HTML은 외부 CDN·웹 폰트·서버 없이 열립니다. 인터넷은 Docker 
   초급/01.html ~ 04.html   이벤트, 파티션, 그룹, Java API
   중급/05.html ~ 08.html   커밋, 멱등 처리, 재시도/DLT, 복제
   고급/09.html ~ 12.html   트랜잭션, Outbox, Streams, 운영
+  부록/cli.html            CLI와 운영 도구, Kafka UI
+  부록/ecosystem.html      Kafka Connect, Schema Registry, Spring Kafka, 로그 파이프라인 도구
+  부록/glossary.html       핵심 용어 70개와 검색
   assets/                 공통 CSS/JS, 12개 SVG 데이터 흐름 이미지
 실습/
   README.md               실행 환경과 명령 설명
@@ -25,7 +30,11 @@ HTML은 외부 CDN·웹 폰트·서버 없이 열립니다. 인터넷은 Docker 
   study.ps1               Windows PowerShell 실행 도우미
   최종-프로젝트.md          전체 흐름과 복구 실험
 검증/                     정적 자료 검사와 검증 기록
-tools/                    HTML/실습 안내 재생성 도구
+tools/
+  content/lesson_XX.py    단원별 원본(개념, 표, FAQ, 결과 해석 등)
+  content/appendix.py     부록 원본
+  course_content.py       공식 출처 목록과 단원 조립
+  build_theory.py         HTML/실습 안내 재생성 도구
 ```
 
 ## 권장 순서
@@ -36,7 +45,7 @@ tools/                    HTML/실습 안내 재생성 도구
 | 중급 | 05~08 | 커밋 실패 구간, DB 멱등성, DLT 기록, Leader 교체 |
 | 고급 | 09~12 | 트랜잭션 격리, Outbox 재발행, 상태 집계, Lag·스키마 |
 
-각 단원 첫 학습에 약 35~75분, 총 약 11.5시간을 예상합니다. 반복 실험·프로젝트·설치와 디버깅 시간은 별도입니다.
+각 단원 첫 학습에 약 45~85분, 총 약 14시간을 예상합니다. 반복 실험·프로젝트·설치와 디버깅 시간은 별도입니다.
 주 2단원씩 6주 진행하면서 `예상 → 실행 → 결과 → 이유`를 기록하는 것을 권장합니다.
 
 ## 실습 시작
@@ -83,7 +92,7 @@ python .\검증\check_materials.py
 
 실행 범위와 관찰 결과는 [검증 안내](검증/README.md)를 확인하세요.
 
-이론과 실습 안내의 원본은 `tools/course_content.py`입니다. Java의 `region` 발췌 구간을 수정하거나 내용을 수정했다면 재생성합니다.
+이론과 실습 안내의 원본은 `tools/content/lesson_XX.py`(단원)와 `tools/content/appendix.py`(부록)입니다. 공식 출처 목록은 `tools/course_content.py`에 있습니다. Java의 `region` 발췌 구간이나 내용을 수정했다면 재생성합니다.
 
 ```powershell
 python .\tools\build_theory.py

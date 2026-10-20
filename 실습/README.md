@@ -89,6 +89,8 @@ Consumer A/B/Producer를 나눠 실행하면 그룹 분담을 관찰할 수 있�
 .\실습\study.ps1 down
 ```
 
+Kafka에 들어 있는 CLI 도구(kafka-topics, kafka-console-consumer, kafka-consumer-groups 등)와 웹 UI로 상태를 들여다보는 방법은 [이론 부록 A1](../이론/부록/cli.html)에 정리했습니다.
+
 `down`은 Kafka/DB/Streams 데이터를 지우지 않습니다. 정상 재시작은 `up`으로 합니다. 완전 초기화가 필요하면 Docker Desktop에서 **kafka-field-guide 프로젝트에 속한 볼륨만** 정확히 식별해 삭제합니다. 학습 데이터가 사라지므로 일반 학습 과정에서는 새 그룹·runId로 분리하는 편이 안전합니다.
 
 ## 3노드 실습

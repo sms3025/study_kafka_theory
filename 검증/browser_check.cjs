@@ -24,12 +24,35 @@ const assert=require('assert/strict');
   await page.locator('[data-search]').fill('there-is-no-such-lesson');
   assert.equal(await page.locator('.lesson-row:visible').count(),0);
   assert.match(await page.locator('.search-feedback').textContent(),/검색 결과가 없습니다/);
+  await page.locator('[data-search]').fill('용어집');
+  assert.equal(await page.locator('.appendix-row:visible').count(),1);
   await page.locator('[data-search]').fill('');
   console.log('PASS catalogue and search');
+  for(const slug of ['cli','ecosystem','glossary']){
+    await page.goto(url('이론/부록/'+slug+'.html'));
+    assert.ok(await page.locator('.appendix-section, #terms').count()>=1,'appendix '+slug);
+    if(slug==='glossary'){
+      const total=await page.locator('[data-term]').count();
+      assert.ok(total>=40,'glossary size');
+      await page.locator('[data-term-search]').fill('ISR');
+      const visible=await page.locator('[data-term]:visible').count();
+      assert.ok(visible>=1 && visible<total,'glossary filter');
+      await page.locator('[data-term-search]').fill('there-is-no-such-term');
+      assert.match(await page.locator('.term-feedback').textContent(),/찾는 용어가 없습니다/);
+    }
+    await page.setViewportSize({width:390,height:844});
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'mobile overflow appendix '+slug);
+    await page.setViewportSize({width:1440,height:1050});
+  }
+  console.log('PASS 3 appendix pages and glossary search');
   for(let i=1;i<=12;i++){
     const id=String(i).padStart(2,'0'); const level=i<5?'초급':i<9?'중급':'고급';
     await page.goto(url('이론/'+level+'/'+id+'.html'));
-    assert.equal(await page.locator('.lesson-section').count(),6);
+    assert.equal(await page.locator('.lesson-section').count(),7);
+    assert.ok(await page.locator('.why').count()===1 && await page.locator('.summary-box').count()===1,'study blocks '+id);
+    assert.ok(await page.locator('.interpret').count()>=3,'result interpretation '+id);
+    await page.locator('.faq summary').first().click();
+    assert.equal(await page.locator('.faq details').first().getAttribute('open'),'');
     const image=page.locator('.diagram img');
     await image.evaluate(el=>el.decode());
     const before=await page.locator('[data-step-message]').textContent();

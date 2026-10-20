@@ -11,3 +11,94 @@
 @media(max-width:650px){.sidebar{transform:translateX(-100%);width:260px;transition:transform .2s;box-shadow:6px 0 30px #12262b22}.sidebar.open{transform:translateX(0)}.shell{margin-left:0}.menu-toggle{display:block}.topbar{padding:12px 20px;position:sticky;top:0;background:#f6f7f3f5;z-index:4}.top-links{gap:14px;font-size:10px}.content{padding:24px 20px}.hero h1{font-size:34px;letter-spacing:-1.8px}.hero{margin-top:10px}.stats{grid-template-columns:1fr 1fr}.stat:nth-child(2){border-right:0}.stat:nth-child(-n+2){border-bottom:1px solid var(--line)}.lesson-row{padding:15px 16px;gap:8px;grid-template-columns:25px 1fr 25px}.lesson-row .duration{display:none}.level-head{padding:20px 16px;gap:12px}.level-head h3{font-size:15px}.level-head>span{display:none}.level-head p{font-size:10px}.lesson-hero h1{font-size:31px}.lesson-section h2{font-size:21px}.lesson-layout{gap:0}.completion{align-items:start;flex-direction:column}.next-prev{grid-template-columns:1fr}.footer{flex-direction:column}.code-block pre{font-size:10px}.sim-controls{flex-wrap:wrap}.sim-message{min-height:78px}.flow-tool{padding:15px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*:before,*:after{animation:none!important;transition:none!important}}
 @media print{.sidebar,.topbar,.toc,.sim-controls,.copy,.completion,.next-prev,.hero-actions,.search-wrap{display:none!important}.shell{margin:0}.content{max-width:none;padding:0}.lesson-layout{display:block}.code-block pre{white-space:pre-wrap;color:#111}.code-block,.simulation{background:#f2f2f2;color:#111}.code-head,.sim-message,.sim-head>span{color:#111}.lesson-section{break-inside:avoid}.hero{min-height:0}body{background:white;font-size:11px}}
+
+/* ---- Study edition 02: richer explanation blocks ---- */
+.rich p{font-size:13px;line-height:2;color:#425b5f;margin:0 0 12px}
+.rich p:last-child{margin-bottom:0}
+.rich ul,.rich ol{font-size:13px;line-height:1.95;color:#425b5f;padding-left:20px;margin:4px 0 12px}
+.rich li{margin:5px 0}
+.rich strong{color:var(--ink)}
+.rich code,.data-table code,.goals code,.code-notes code,.callout code,.experiment code,.expected code,.summary-box code,.term code,.faq summary code,.lesson-body h3 code,.lesson-body h4 code{font:12px "Consolas","Cascadia Code",monospace;background:#edf2e9;border-radius:4px;padding:1px 5px;color:#2c4a45;overflow-wrap:anywhere}
+.rich .code-block{margin:12px 0}
+.concept-block .rich p{margin-bottom:10px}
+.why{background:#fff;border:1px solid var(--line);border-left:3px solid var(--ink);border-radius:0 12px 12px 0;padding:18px 22px;margin:0 0 26px}
+.why>strong,.analogy>strong,.summary-box>strong{display:block;font-size:11px;letter-spacing:.6px;margin-bottom:8px}
+.why>strong{color:var(--ink)}
+.analogy{background:var(--blue);border-radius:12px;padding:20px 24px;margin:0 0 30px}
+.analogy>strong{color:#3e6880}
+.analogy .rich p,.analogy .rich li{color:#34505c}
+.analogy-note{font-size:10px;color:#5f7d8a;margin:10px 0 0}
+.example .rich{margin-top:6px}
+.example .rich p{font-size:13px}
+.data-table{margin:28px 0 0}
+.data-table h3{font-size:14px;margin:0 0 8px}
+.data-table>.rich p{font-size:12px}
+.table-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:#fff;margin-top:10px}
+.data-table table{border-collapse:collapse;width:100%;font-size:12px;min-width:520px}
+.data-table th{background:#eef2ea;text-align:left;padding:10px 12px;font-weight:700;font-size:11px;color:#2b4744;white-space:nowrap}
+.data-table td{padding:10px 12px;border-top:1px solid #edf0eb;vertical-align:top;line-height:1.8;color:#425b5f}
+.data-table tr:hover td{background:#fafbf8}
+.table-note{font-size:11px;color:var(--muted);margin:8px 0 0}
+.scenario td:first-child{font:11px/1.8 "Consolas",monospace;color:#ae3a22;white-space:nowrap}
+.sub-heading{font-size:17px;letter-spacing:-.5px;margin:40px 0 6px}
+.sub-intro{font-size:12px;color:var(--muted);margin:0 0 16px}
+.deep-block{border:1px solid var(--line);background:#fff;border-radius:12px;padding:18px 22px;margin:0 0 14px}
+.deep-block h4{font-size:14px;margin:6px 0 8px}
+.deep-badge{display:inline-block;font-size:9px;letter-spacing:1px;color:#597230;background:var(--sage);border-radius:20px;padding:2px 9px}
+.summary-box{background:var(--ink);color:#fff;border-radius:12px;padding:20px 24px;margin-top:30px}
+.summary-box>strong{color:#ffb08f}
+.summary-box ul{margin:0;padding:0;list-style:none;display:grid;gap:7px}
+.summary-box li{font-size:12px;line-height:1.85;color:#e1ece8;padding-left:20px;position:relative}
+.summary-box li:before{content:'✓';position:absolute;left:0;color:#a6c67a}
+.summary-box code{background:#2c4547;color:#e7f0ed}
+.interpret{background:#fff;border:1px solid var(--line);border-radius:9px;padding:13px 17px;margin-top:12px}
+.interpret>b{display:block;font-size:11px;color:#3e6880;margin-bottom:6px}
+.interpret .rich p,.interpret .rich li{font-size:12px;line-height:1.9}
+.interpret .code-block pre{padding:12px 15px}
+.logcase{border:1px solid #c9d8e3;background:#f2f7f9;border-radius:12px;padding:22px 24px}
+.logcase h3{font-size:16px;margin:6px 0 12px}
+.logcase-label{font:10px "Consolas",monospace;letter-spacing:1px;color:#3e6880}
+.faq{margin-bottom:22px}
+.faq .sub-heading{margin-top:0}
+.faq details{border:1px solid var(--line);background:#fff;border-radius:10px;margin:0 0 9px}
+.faq summary{cursor:pointer;padding:13px 18px;font-size:13px;font-weight:700;list-style:none;display:flex;gap:8px}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary:before{content:'Q.';color:var(--orange);flex:none}
+.faq details[open] summary{border-bottom:1px solid #edf0eb}
+.faq details .rich{padding:12px 18px 16px}
+.faq details .rich p,.faq details .rich li{font-size:12px}
+.toc a.toc-sub{padding-left:22px;font-size:10px;color:var(--muted)}
+.callout code{font-size:11px}
+/* appendix */
+.nav-group:nth-of-type(4) .dot{background:#8d6bb1}
+.appendix-intro{margin-top:26px}
+.appendix-section .rich p{font-size:13px}
+.appendix-card .level-badge{background:#efe8f6;color:#6f4f94}
+.appendix-row{display:grid;grid-template-columns:32px 1fr auto 28px;align-items:center;gap:12px;padding:17px 26px;border-bottom:1px solid #edf0eb}
+.appendix-row:last-child{border:0}
+.appendix-row:hover{background:#f8faf5}
+.appendix-row .row-no{font:12px "Consolas",monospace;color:#889791}
+.appendix-row h4{margin:0;font-size:13px;line-height:1.6}
+.appendix-row p{margin:3px 0 0;font-size:11px;color:var(--muted)}
+.appendix-row .duration{font:10px "Consolas",monospace;color:var(--muted)}
+.glossary-search{margin:0 0 18px}
+.glossary{margin:0;display:grid;gap:10px}
+.term{border:1px solid var(--line);background:#fff;border-radius:10px;padding:14px 18px;scroll-margin-top:30px}
+.term:target{border-color:var(--orange);box-shadow:0 0 0 3px #fae8df}
+.term dt{font-size:14px;font-weight:700;display:flex;flex-wrap:wrap;align-items:baseline;gap:8px}
+.term-en{font:11px "Consolas",monospace;color:var(--muted);font-weight:400}
+.term dd{margin:6px 0 0}
+.term dd .rich p,.term dd .rich li{font-size:12px;line-height:1.9}
+.term-refs{margin:8px 0 0!important;display:flex;flex-wrap:wrap;gap:6px}
+.term-ref{font-size:10px;border:1px solid var(--line);border-radius:20px;padding:1px 9px;color:#4d6763;background:#f8faf5}
+@media(max-width:650px){.appendix-row{padding:15px 16px;gap:8px;grid-template-columns:25px 1fr 25px}
+.appendix-row .duration{display:none}
+.why,.analogy,.summary-box,.logcase{padding:16px 17px}
+.data-table table{font-size:11px}
+}
+@media print{.faq details{break-inside:avoid}
+.faq details:not([open]) .rich{display:block}
+}
+.rich pre code,.data-table pre code,.term pre code{background:none;padding:0;border-radius:0;color:inherit;font:inherit;overflow-wrap:normal}
+.rich+.rich,.data-table+.rich{margin-top:14px}
+.appendix-section .data-table:first-child{margin-top:0}

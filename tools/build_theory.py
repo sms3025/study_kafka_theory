@@ -5,13 +5,14 @@ from urllib.parse import quote
 import json
 import textwrap
 import re
-from course_content import LESSONS, SOURCES, ADDITIONAL_SNIPPETS
+from course_content import LESSONS, SOURCES, ADDITIONAL_SNIPPETS, APPENDICES
 
 ROOT = Path(__file__).resolve().parents[1]
 THEORY = ROOT / '이론'
 PRACTICE = ROOT / '실습'
 LESSONS = sorted(LESSONS, key=lambda x: x['id'])
 LEVELS = [('초급','01','기록하고, 나누고, 읽기','메시지 한 건의 이동부터 Java 송수신까지'),('중급','02','실패해도 흐름을 지키기','커밋 · 중복 방지 · 재시도 · 복제'),('고급','03','일관성과 운영까지 설계하기','트랜잭션 · Outbox · Streams · 관측')]
+APPENDIX_DIR = '부록'
 
 def put(path, value):
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -23,6 +24,66 @@ def link(path):
 def lesson_url(item, base=''):
     return link(f"{base}{item['level']}/{item['id']}.html")
 
+def appendix_url(item, base=''):
+    return link(f"{base}{APPENDIX_DIR}/{item['slug']}.html")
+
+# ---------------------------------------------------------------- text markup
+def inline(text):
+    """Escape HTML, then render `code` and **bold**."""
+    codes = []
+    def keep(match):
+        codes.append(match.group(1))
+        return f'\x00{len(codes)-1}\x00'
+    rendered = esc(re.sub(r'`([^`]+)`', keep, text))
+    rendered = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', rendered)
+    return re.sub(r'\x00(\d+)\x00', lambda m: f'<code>{esc(codes[int(m.group(1))])}</code>', rendered)
+
+CODE_LABELS = {'java':'Java 21','powershell':'PowerShell','text':'출력 예시','sql':'SQL','yaml':'YAML','bash':'Shell','json':'JSON','properties':'properties'}
+
+def rich(text):
+    """Small markup: blank-line paragraphs, '- ' lists, '1. ' lists, fenced code."""
+    if not text:
+        return ''
+    text = textwrap.dedent(text).strip('\n')
+    html = []
+    lines = text.split('\n')
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        if not line.strip():
+            i += 1; continue
+        fence = re.match(r'^\s*```(\w*)\s*$', line)
+        if fence:
+            lang = fence.group(1) or 'text'
+            body = []; i += 1
+            while i < len(lines) and not re.match(r'^\s*```\s*$', lines[i]):
+                body.append(lines[i]); i += 1
+            i += 1
+            html.append(codeblock(textwrap.dedent('\n'.join(body)), CODE_LABELS.get(lang.lower(), lang)))
+            continue
+        block = []
+        while i < len(lines) and lines[i].strip() and not re.match(r'^\s*```', lines[i]):
+            block.append(lines[i].strip()); i += 1
+        if all(re.match(r'^- ', b) for b in block):
+            html.append('<ul>' + ''.join(f'<li>{inline(b[2:])}</li>' for b in block) + '</ul>')
+        elif all(re.match(r'^\d+\. ', b) for b in block):
+            html.append('<ol>' + ''.join('<li>' + inline(re.sub(r'^\d+\. ', '', b)) + '</li>' for b in block) + '</ol>')
+        else:
+            html.append('<p>' + ' '.join(inline(b) for b in block) + '</p>')
+    return f'<div class="rich">{"".join(html)}</div>'
+
+def md(text):
+    return textwrap.dedent(text or '').strip('\n')
+
+def table_html(t, cls='data-table'):
+    if not t:
+        return ''
+    head = ''.join(f'<th scope="col">{inline(c)}</th>' for c in t['columns'])
+    rows = ''.join('<tr>' + ''.join(f'<td>{inline(str(c))}</td>' for c in row) + '</tr>' for row in t['rows'])
+    intro = rich(t.get('intro', ''))
+    note = f'<p class="table-note">{inline(t["note"])}</p>' if t.get('note') else ''
+    return f'<div class="{cls}"><h3>{inline(t["title"])}</h3>{intro}<div class="table-scroll" tabindex="0" role="region" aria-label="{esc(t["title"])}"><table><thead><tr>{head}</tr></thead><tbody>{rows}</tbody></table></div>{note}</div>'
+
 LOGO = '''<svg width="35" height="43" viewBox="0 0 35 43" aria-hidden="true"><g fill="none" stroke="#d64d2e" stroke-width="2.2"><path d="M12 12L24 5M12 12v19m0-10l14 7m-14 3l12 7"/><circle cx="12" cy="12" r="4.5" fill="white"/><circle cx="12" cy="31" r="4.5" fill="white"/><circle cx="25" cy="5" r="3.2" fill="white"/><circle cx="27" cy="28" r="3.2" fill="white"/><circle cx="25" cy="38" r="3.2" fill="white"/></g></svg>'''
 
 def sidebar(base, current=None):
@@ -33,19 +94,25 @@ def sidebar(base, current=None):
             if item['level'] != level: continue
             entries.append(f'''<a class="nav-item {'active' if current==item['id'] else ''}" {'aria-current="page"' if current==item['id'] else ''} data-lesson="{item['id']}" href="{lesson_url(item,base)}"><span class="num">{item['id']}</span><span>{esc(item['short'])}</span></a>''')
         groups.append(f'<div class="nav-group"><p><span class="dot"></span>{level} / LEVEL {number}</p>{"".join(entries)}</div>')
+    if APPENDICES:
+        entries=[]
+        for item in APPENDICES:
+            active = current == 'A:' + item['slug']
+            entries.append(f'''<a class="nav-item appendix-item {'active' if active else ''}" {'aria-current="page"' if active else ''} href="{appendix_url(item,base)}"><span class="num">{item['no']}</span><span>{esc(item['short'])}</span></a>''')
+        groups.append(f'<div class="nav-group"><p><span class="dot"></span>부록 / APPENDIX</p>{"".join(entries)}</div>')
     return f'''<aside class="sidebar" aria-label="학습 목차"><a class="brand" href="{base}index.html">{LOGO}<span>Kafka Field Guide<small>원리에서 실행까지</small></span></a><p class="nav-label">YOUR LEARNING PATH</p><a class="overview-link {'active' if current is None else ''}" href="{base}index.html">⌘ &nbsp; 전체 학습 로드맵</a><nav>{''.join(groups)}</nav><div class="sidebar-bottom">나의 학습 진행 <b data-progress-count>0 / 12</b><div class="mini-progress"><span data-progress-bar></span></div><p data-storage-note class="storage-note">학습 기록은 이 브라우저에만 저장됩니다.</p><span>Java 21 · Kafka 4.3.1 · Docker</span></div></aside>'''
 
 def page(title, body, base='', current=None):
     lab='../실습/README.md' if not base else '../../실습/README.md'
     result = f'''<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Kafka 초급·중급·고급 학습. 데이터 흐름 그림, 실무 패턴 코드와 Docker 실습을 연결한 로컬 가이드."><meta name="theme-color" content="#182c30"><title>{esc(title)} · Kafka Field Guide</title><link rel="icon" href="{base}assets/icon.svg" type="image/svg+xml"><link rel="stylesheet" href="{base}assets/style.css"><script defer src="{base}assets/app.js"></script></head>
-<body><a href="#main" class="skip">본문으로 건너뛰기</a>{sidebar(base,current)}<div class="shell"><header class="topbar"><button class="menu-toggle" aria-label="학습 목차 열기" aria-expanded="false">☰</button><span class="edition">APACHE KAFKA / STUDY EDITION 01</span><div class="top-links"><a href="{base}index.html">학습 로드맵</a><a href="{link(lab)}">실습 시작 안내 ↗</a></div></header><main id="main" class="content">{body}<footer class="footer"><span>Kafka Field Guide · 개념을 읽고, 흐름을 보고, 코드로 확인합니다.</span><span>OFFLINE READY / 2026.10</span></footer></main></div></body></html>'''
+<body><a href="#main" class="skip">본문으로 건너뛰기</a>{sidebar(base,current)}<div class="shell"><header class="topbar"><button class="menu-toggle" aria-label="학습 목차 열기" aria-expanded="false">☰</button><span class="edition">APACHE KAFKA / STUDY EDITION 02</span><div class="top-links"><a href="{base}index.html">학습 로드맵</a><a href="{link(lab)}">실습 시작 안내 ↗</a></div></header><main id="main" class="content">{body}<footer class="footer"><span>Kafka Field Guide · 개념을 읽고, 흐름을 보고, 코드로 확인합니다.</span><span>OFFLINE READY / 2026.10</span></footer></main></div></body></html>'''
 
     return result.replace('</aside><div class="shell">','<button class="sidebar-close" data-menu-close aria-label="학습 목차 닫기">×</button></aside><div class="shell">',1)
 
 def codeblock(code, label='Java 21'):
     rendered=esc(code)
-    if 'PowerShell' not in label:
+    if 'Java' in label:
         pattern=r'(?P<comment>//[^\n]*|/\*[\s\S]*?\*/)|(?P<string>"""[\s\S]*?"""|"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\')|(?P<keyword>\b(?:public|private|static|final|void|var|int|long|boolean|if|else|for|while|try|catch|throw|throws|new|return|true|false|null|class|record)\b)'
         parts=[];last=0
         for token in re.finditer(pattern,code):
@@ -63,9 +130,13 @@ def extra_code(item):
         result.append(f'<div class="concept-block"><h3>{esc(title)}</h3><p>{esc(description)}</p></div>'+codeblock(snippet,Path(source).name+' · Java 21')+f'<p class="code-source"><a href="{link("../../실습/"+source)}">{esc(source)}</a> · {start+1}행부터</p>')
     return ''.join(result)
 
+def plain(text):
+    """Strip the small markup for SVG/alt text."""
+    return re.sub(r'\s+', ' ', re.sub(r'`|\*\*|```\w*', '', text or '')).strip()
+
 def svg(item):
     nodes=item['nodes']; edges=item['edges']; w=225; h=76
-    elements=['<svg xmlns="http://www.w3.org/2000/svg" width="920" height="410" viewBox="0 0 920 410" role="img" aria-labelledby="title desc">',f'<title id="title">{esc(item["short"])} 데이터 흐름</title><desc id="desc">{esc(" → ".join(x[0] for x in nodes))}. {esc(item["example"])}</desc>', '<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10" fill="none" stroke="#758c80" stroke-width="1.5"/></marker><pattern id="dots" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#dfe7dc"/></pattern></defs><rect width="920" height="410" fill="#f4f7ef"/><rect width="920" height="410" fill="url(#dots)"/>']
+    elements=['<svg xmlns="http://www.w3.org/2000/svg" width="920" height="410" viewBox="0 0 920 410" role="img" aria-labelledby="title desc">',f'<title id="title">{esc(item["short"])} 데이터 흐름</title><desc id="desc">{esc(" → ".join(x[0] for x in nodes))}. {esc(plain(item["example"]).split(". ")[0])}.</desc>', '<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10" fill="none" stroke="#758c80" stroke-width="1.5"/></marker><pattern id="dots" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#dfe7dc"/></pattern></defs><rect width="920" height="410" fill="#f4f7ef"/><rect width="920" height="410" fill="url(#dots)"/>']
     for a,b,label in edges:
         _,_,ax,ay=nodes[a]; _,_,bx,by=nodes[b]
         dx=bx-ax; dy=by-ay
@@ -100,6 +171,34 @@ def tool(item):
     if not kind:return ''
     return f'<div class="flow-tool" data-tool="{kind}"><h3>{title}</h3><div class="tool-controls">{controls}</div><p class="tool-output" aria-live="polite"></p><p>{note}</p></div>'
 
+def concept_section(item):
+    parts=[]
+    if item.get('why'):
+        parts.append(f'<aside class="why"><strong>왜 이 단원을 배우나요?</strong>{rich(item["why"])}</aside>')
+    analogy=item.get('analogy')
+    if analogy and analogy[0]:
+        parts.append(f'<aside class="analogy"><strong>비유로 먼저 감 잡기 · {inline(analogy[0])}</strong>{rich(analogy[1])}<p class="analogy-note">비유는 이해를 돕는 장치일 뿐입니다. 실제 동작과 어긋나는 부분은 아래 설명을 기준으로 합니다.</p></aside>')
+    parts.append(''.join(f'<div class="concept-block"><h3>{inline(t)}</h3>{rich(p)}</div>' for t,p in item['concept']))
+    parts.append(f'<aside class="example"><strong>예시로 생각하기</strong>{rich(item["example"])}</aside>')
+    if item.get('scenario'):
+        parts.append(table_html(item['scenario'],'data-table scenario'))
+    for t in item.get('tables',[]):
+        parts.append(table_html(t))
+    if item.get('deep'):
+        deep=''.join(f'<div class="deep-block"><span class="deep-badge">추가 개념</span><h4>{inline(t)}</h4>{rich(p)}</div>' for t,p in item['deep'])
+        parts.append(f'<div id="deep" class="deep"><h3 class="sub-heading">한 걸음 더: 함께 알아둘 개념</h3><p class="sub-intro">기본 흐름을 이해했다면, 실무에서 곧바로 마주치는 관련 개념을 이어서 정리합니다.</p>{deep}</div>')
+    if item.get('summary'):
+        parts.append('<aside class="summary-box"><strong>핵심 정리</strong><ul>'+''.join(f'<li>{inline(s)}</li>' for s in item['summary'])+'</ul></aside>')
+    return ''.join(parts)
+
+def lab_steps(item):
+    out=[]
+    for i,command in enumerate(item['commands']):
+        t,c,e=command[:3]; interpret=command[3] if len(command)>3 else ''
+        extra=f'<div class="interpret"><b>결과 해석</b>{rich(interpret)}</div>' if interpret else ''
+        out.append(f'<div class="lab-step"><h3>{i+1:02d}. {esc(t)}</h3>{codeblock(c,"PowerShell · 저장소 루트에서 실행")}<p class="expected">{inline(e)}</p>{extra}</div>')
+    return ''.join(out)
+
 def render_lesson(item):
     n=item['id'];lvl=item['level']; idx=LESSONS.index(item)
     source,region=item['snippet']; path=PRACTICE/source
@@ -107,11 +206,10 @@ def render_lesson(item):
     start=next(i for i,line in enumerate(lines) if '// region '+region in line)+1
     end=next(i for i in range(start,len(lines)) if '// endregion '+region in lines[i])
     snippet=textwrap.dedent('\n'.join(lines[start:end]))
-    concepts=''.join(f'<div class="concept-block"><h3>{esc(t)}</h3><p>{esc(p)}</p></div>' for t,p in item['concept'])
-    goals=''.join(f'<li>{esc(g)}</li>' for g in item['goals'])
-    notes=''.join(f'<li>{esc(x)}</li>' for x in item['explain'])
-    labs=''.join(f'<div class="lab-step"><h3>{i+1:02d}. {esc(t)}</h3>{codeblock(c,"PowerShell · 저장소 루트에서 실행")}<p class="expected">{esc(e)}</p></div>' for i,(t,c,e) in enumerate(item['commands']))
-    experiments=''.join(f'<li>{esc(x)}</li>' for x in item['experiment'])
+    goals=''.join(f'<li>{inline(g)}</li>' for g in item['goals'])
+    notes=''.join(f'<li>{inline(x)}</li>' for x in item['explain'])
+    labs=lab_steps(item)
+    experiments=''.join(f'<li>{inline(x)}</li>' for x in item['experiment'])
     question,answers,correct,explanation=item['quiz']
     options=''.join(f'<button data-answer="{i}" aria-pressed="false">{chr(65+i)}. {esc(answer)}</button>' for i,answer in enumerate(answers))
     references=''.join(f'<li><a href="{SOURCES[key][1]}" target="_blank" rel="noreferrer">{esc(SOURCES[key][0])} ↗</a></li>' for key in item['sources'])
@@ -122,23 +220,90 @@ def render_lesson(item):
     snippet_url=link('../../실습/'+source)
     step_nodes=''.join('<span class="sim-node"></span>' for _ in item['steps'])
     data=json.dumps(dict(steps=item['steps'],correct=correct,explanation=explanation),ensure_ascii=False).replace('</','<\\/')
+    logcase=item.get('logcase')
+    apply_body=f'<div class="logcase"><span class="logcase-label">LOG PIPELINE</span><h3>{inline(logcase["title"])}</h3>{rich(logcase["body"])}</div>' if logcase else '<p class="lab-intro">이 단원에는 별도의 적용 메모가 없습니다.</p>'
+    faq=''.join(f'<details><summary>{inline(q)}</summary>{rich(a)}</details>' for q,a in item.get('faq',[]))
+    faq_html=f'<div class="faq"><h3 class="sub-heading">자주 묻는 질문</h3>{faq}</div>' if faq else ''
+    deep_toc='<a class="toc-sub" href="#deep">└ 함께 알아둘 개념</a>' if item.get('deep') else ''
     body=f'''<div class="breadcrumb"><a href="../index.html">로드맵</a> / {lvl} / LESSON {n}</div><section class="lesson-hero"><div class="eyebrow">LESSON {n} / {lvl}</div><h1>{esc(item['title'])}</h1><p>{esc(item['desc'])}</p><div class="lesson-meta"><span class="pill accent">{esc(item['short'])}</span><span class="pill">이론 + 실습 약 {item['minutes']}분</span><span class="pill">Java 21 · Kafka 4.3.1</span></div></section>
 <div class="lesson-layout"><article class="lesson-body"><div class="goals"><p>이 단원을 마치면</p><ul>{goals}</ul></div>
-<section id="concept" class="lesson-section"><h2><span class="section-no">01 / UNDERSTAND</span>먼저, 원리를 이해합니다.</h2>{concepts}<aside class="example"><strong>예시로 생각하기</strong><p>{esc(item['example'])}</p></aside></section>
+<section id="concept" class="lesson-section"><h2><span class="section-no">01 / UNDERSTAND</span>먼저, 원리를 이해합니다.</h2>{concept_section(item)}</section>
 <section id="flow" class="lesson-section"><h2><span class="section-no">02 / FOLLOW THE EVENT</span>데이터의 이동을 따라갑니다.</h2><figure class="diagram"><img src="../assets/flow-{n}.svg" width="920" height="410" alt="{esc(item['short'])} 데이터 흐름: {esc(' → '.join(x[0] for x in item['nodes']))}"><figcaption>설명용 구조도 · 번호는 구성 요소를 구분합니다. &nbsp;<a class="diagram-download" href="../assets/flow-{n}.svg" download>SVG 이미지 저장 ↓</a></figcaption></figure><div class="simulation"><div class="sim-head"><b>FLOW PLAYER</b><span data-step-count>1 / {len(item['steps'])}</span></div><div class="sim-track" aria-hidden="true">{step_nodes}</div><p class="sim-message" data-step-message aria-live="polite">{esc(item['steps'][0])}</p><div class="sim-controls"><button data-step="prev">이전</button><button class="primary" data-step="next">다음 단계 →</button><button data-step="play">자동 재생</button><button data-step="reset">처음부터</button></div><p class="sim-small">원리를 이해하기 위한 단계 모델입니다. 네트워크 시간이나 장애 판정을 재현하지 않습니다.</p></div>{tool(item)}</section>
-<section id="code" class="lesson-section"><h2><span class="section-no">03 / READ THE CODE</span>현업 패턴을 코드로 읽습니다.</h2><p class="lab-intro">아래 코드는 함께 제공된 실행 소스에서 발췌했습니다. 전체 클래스와 설정은 소스 파일에서 확인할 수 있습니다.</p>{codeblock(snippet,Path(source).name+' · Java 21')}<p class="code-source">소스: <a href="{snippet_url}">{esc(source)}</a> · {start+1}행부터</p><ul class="code-notes">{notes}</ul><aside class="callout"><b>오해하기 쉬운 지점</b>{esc(item['pitfall'])}</aside></section>
+<section id="code" class="lesson-section"><h2><span class="section-no">03 / READ THE CODE</span>현업 패턴을 코드로 읽습니다.</h2><p class="lab-intro">아래 코드는 함께 제공된 실행 소스에서 발췌했습니다. 전체 클래스와 설정은 소스 파일에서 확인할 수 있습니다.</p>{codeblock(snippet,Path(source).name+' · Java 21')}<p class="code-source">소스: <a href="{snippet_url}">{esc(source)}</a> · {start+1}행부터</p><ul class="code-notes">{notes}</ul><aside class="callout"><b>오해하기 쉬운 지점</b>{inline(item['pitfall'])}</aside></section>
 <section id="lab" class="lesson-section"><h2><span class="section-no">04 / MAKE IT REAL</span>이제, 직접 확인합니다.</h2><p class="lab-intro">PowerShell에서 저장소 루트로 이동한 뒤 실행하세요. 01단원의 up → build → init이 선행되어야 합니다. 종료된 환경은 up으로 다시 시작합니다. 이후 단원의 max=0은 입력이 끊긴 뒤 25초까지 읽습니다. &nbsp;<a href="{link('../../실습/'+lvl+'/'+labfile)}">대응 실습 안내 파일 ↗</a></p>{labs}<div class="experiment"><h3>한 걸음 더 실험하기</h3><ul>{experiments}</ul></div></section>
-<section id="check" class="lesson-section"><h2><span class="section-no">05 / CHECK YOUR UNDERSTANDING</span>설명할 수 있으면, 내 지식입니다.</h2><div class="quiz"><h3>{esc(question)}</h3><div class="quiz-options">{options}</div><p class="quiz-feedback" aria-live="polite"></p></div><div class="completion"><p>원리를 읽고 실습 결과를 확인했나요?<br><span class="storage-note" data-storage-note>학습 기록은 이 브라우저에만 저장됩니다.</span></p><button class="button complete-button" data-complete="{n}" aria-pressed="false">이 단원 학습 완료</button></div></section>
-<section id="sources" class="lesson-section"><h2><span class="section-no">06 / GO TO THE SOURCE</span>공식 문서로 더 알아보기</h2><ul class="source-list">{references}</ul></section><nav class="next-prev" aria-label="이전 다음 단원">{before}{after}</nav></article><aside class="toc" aria-label="페이지 목차"><p>IN THIS LESSON</p><a href="#concept">01 개념과 원리</a><a href="#flow">02 데이터 흐름</a><a href="#code">03 코드 해설</a><a href="#lab">04 실습하기</a><a href="#check">05 이해도 확인</a><a href="#sources">06 공식 자료</a></aside></div><script type="application/json" id="lesson-data">{data}</script>'''
+<section id="apply" class="lesson-section"><h2><span class="section-no">05 / APPLY IT</span>로그 수집 파이프라인에 적용하면</h2><p class="lab-intro">같은 개념이 대용량 장비 로그 수집(수집 에이전트 → 수집 서버 → Kafka → 로그 저장소)에서는 어떻게 쓰이는지 정리합니다. 특정 회사나 장비가 아닌 일반적인 구성을 기준으로 합니다.</p>{apply_body}</section>
+<section id="check" class="lesson-section"><h2><span class="section-no">06 / CHECK YOUR UNDERSTANDING</span>설명할 수 있으면, 내 지식입니다.</h2>{faq_html}<div class="quiz"><h3>{esc(question)}</h3><div class="quiz-options">{options}</div><p class="quiz-feedback" aria-live="polite"></p></div><div class="completion"><p>원리를 읽고 실습 결과를 확인했나요?<br><span class="storage-note" data-storage-note>학습 기록은 이 브라우저에만 저장됩니다.</span></p><button class="button complete-button" data-complete="{n}" aria-pressed="false">이 단원 학습 완료</button></div></section>
+<section id="sources" class="lesson-section"><h2><span class="section-no">07 / GO TO THE SOURCE</span>공식 문서로 더 알아보기</h2><ul class="source-list">{references}</ul></section><nav class="next-prev" aria-label="이전 다음 단원">{before}{after}</nav></article><aside class="toc" aria-label="페이지 목차"><p>IN THIS LESSON</p><a href="#concept">01 개념과 원리</a>{deep_toc}<a href="#flow">02 데이터 흐름</a><a href="#code">03 코드 해설</a><a href="#lab">04 실습하기</a><a href="#apply">05 로그 수집 적용</a><a href="#check">06 이해도 확인</a><a href="#sources">07 공식 자료</a></aside></div><script type="application/json" id="lesson-data">{data}</script>'''
     body=body.replace('<aside class="callout">',extra_code(item)+'<aside class="callout">',1)
     body=body.replace('SVG 이미지 저장 ↓</a>',f'SVG 이미지 저장 ↓</a> &nbsp; <a href="../assets/flow-{n}.svg" target="_blank" rel="noreferrer">크게 보기 ↗</a>')
     put(THEORY/lvl/f'{n}.html',page(item['title'],body,'../',n))
     put(THEORY/'assets'/f'flow-{n}.svg',svg(item))
-    guide=f'# {n}. {item["short"]}\n\n{item["desc"]}\n\n먼저 [대응 이론 HTML](../../이론/{lvl}/{n}.html)을 읽으세요.\n\n## 준비\n\n- 저장소 루트의 PowerShell에서 실행합니다.\n- 01단원의 up → build → init을 완료해야 합니다.\n- 기존 기록은 유지됩니다. 새 실험은 고유 group / runId를 사용하세요.\n- `max=0`은 무한 상주가 아니라 입력이 끊긴 뒤 25초까지 읽는 모드입니다.\n\n## 학습 목표\n\n'+''.join('- '+x+'\n' for x in item['goals'])
-    guide+='\n## 실행과 관찰\n\n'
-    for i,(t,c,e) in enumerate(item['commands']):guide+=f'### {i+1}. {t}\n\n```powershell\n{c}\n```\n\n예상 결과: {e}\n\n'
-    guide+='## 더 실험하기\n\n'+''.join('- '+x+'\n' for x in item['experiment'])+'\n## 주의할 경계\n\n'+item['pitfall']+'\n\n## 읽을 소스\n\n'+f'- [발췌한 전체 소스](../{source})\n\n## 기록할 것\n\n| 예상 결과 | 실제 결과 | 차이의 이유 |\n|---|---|---|\n| 직접 작성 | 직접 작성 | 직접 작성 |\n\n## 완료 기준\n\n'+''.join('- [ ] '+x+'\n' for x in item['goals'])+'\n'+f'이해도 확인: {question}\n\n<details><summary>답 확인</summary>\n\n{answers[correct]} — {explanation}\n\n</details>\n'
-    put(PRACTICE/lvl/labfile,guide)
+    put(PRACTICE/lvl/labfile,lab_guide(item,source))
+
+def lab_guide(item, source):
+    n=item['id']; lvl=item['level']
+    question,answers,correct,explanation=item['quiz']
+    g=f'# {n}. {item["short"]}\n\n{item["desc"]}\n\n먼저 [대응 이론 HTML](../../이론/{lvl}/{n}.html)을 읽으세요.\n\n'
+    g+='## 준비\n\n- 저장소 루트의 PowerShell에서 실행합니다.\n- 01단원의 up → build → init을 완료해야 합니다.\n- 기존 기록은 유지됩니다. 새 실험은 고유 group / runId를 사용하세요.\n- `max=0`은 무한 상주가 아니라 입력이 끊긴 뒤 25초까지 읽는 모드입니다.\n\n'
+    g+='## 학습 목표\n\n'+''.join('- '+x+'\n' for x in item['goals'])
+    if item.get('summary'):
+        g+='\n## 실습 전에 떠올릴 핵심 개념\n\n'+''.join('- '+x+'\n' for x in item['summary'])
+    g+='\n## 실행과 관찰\n\n'
+    for i,command in enumerate(item['commands']):
+        t,c,e=command[:3]; interpret=command[3] if len(command)>3 else ''
+        g+=f'### {i+1}. {t}\n\n```powershell\n{c}\n```\n\n예상 결과: {e}\n\n'
+        if interpret:
+            g+='**결과 해석**\n\n'+md(interpret)+'\n\n'
+    g+='## 더 실험하기\n\n'+''.join('- '+x+'\n' for x in item['experiment'])+'\n## 주의할 경계\n\n'+item['pitfall']+'\n\n'
+    if item.get('logcase'):
+        g+=f'## 로그 수집 파이프라인에 적용하면\n\n**{item["logcase"]["title"]}**\n\n'+md(item['logcase']['body'])+'\n\n'
+    if item.get('faq'):
+        g+='## 자주 묻는 질문\n\n'+''.join(f'### Q. {q}\n\n{md(a)}\n\n' for q,a in item['faq'])
+    g+='## 읽을 소스\n\n'+f'- [발췌한 전체 소스](../{source})\n\n## 기록할 것\n\n| 예상 결과 | 실제 결과 | 차이의 이유 |\n|---|---|---|\n| 직접 작성 | 직접 작성 | 직접 작성 |\n\n## 완료 기준\n\n'+''.join('- [ ] '+x+'\n' for x in item['goals'])+'\n'+f'이해도 확인: {question}\n\n<details><summary>답 확인</summary>\n\n{answers[correct]}: {explanation}\n\n</details>\n'
+    return g
+
+def ref_link(r, base='../'):
+    if r.isdigit():
+        lesson=next(l for l in LESSONS if l['id']==r)
+        return f'<a class="term-ref" href="{lesson_url(lesson,base)}">{r}단원</a>'
+    app=next(a for a in APPENDICES if a['slug']==r)
+    return f'<a class="term-ref" href="{appendix_url(app,base)}">부록 {app["no"]}</a>'
+
+def glossary_html(groups):
+    out=['<section id="terms" class="lesson-section"><h2><span class="section-no">TERMS</span>용어 찾아보기</h2><div class="search-wrap glossary-search"><label class="sr-label" for="term-search">용어 검색</label><input class="search" id="term-search" data-term-search placeholder="예: ISR, offset, 리밸런싱" type="search"><div class="search-feedback term-feedback" role="status"></div></div>']
+    for group in groups:
+        items=[]
+        for term in group['terms']:
+            refs=' '.join(ref_link(r) for r in term.get('refs',[]))
+            items.append(f'<div class="term" id="term-{term["id"]}" data-term><dt>{inline(term["term"])}<span class="term-en">{esc(term.get("en",""))}</span></dt><dd>{rich(term["body"])}<p class="term-refs">{refs}</p></dd></div>')
+        out.append(f'<div class="term-group" data-term-group><h3 class="sub-heading">{esc(group["title"])}</h3><dl class="glossary">{"".join(items)}</dl></div>')
+    out.append('</section>')
+    return ''.join(out)
+
+def render_appendix(item):
+    toc=''.join(f'<a href="#{s["id"]}">{esc(s.get("toc") or plain(s["title"]))}</a>' for s in item.get('sections',[]))
+    sections=[]
+    for s in item.get('sections',[]):
+        inner=rich(s.get('body',''))
+        for t in s.get('tables',[]):
+            inner+=table_html(t)
+        if s.get('after'):
+            inner+=rich(s['after'])
+        sections.append(f'<section id="{s["id"]}" class="lesson-section appendix-section"><h2><span class="section-no">{esc(s.get("kicker",""))}</span>{inline(s["title"])}</h2>{inner}</section>')
+    if item.get('glossary'):
+        sections.append(glossary_html(item['glossary']))
+        toc+='<a href="#terms">용어 찾아보기</a>'
+    references=''.join(f'<li><a href="{SOURCES[key][1]}" target="_blank" rel="noreferrer">{esc(SOURCES[key][0])} ↗</a></li>' for key in item.get('sources',[]))
+    if references:
+        sections.append(f'<section id="sources" class="lesson-section"><h2><span class="section-no">GO TO THE SOURCE</span>공식 문서로 더 알아보기</h2><ul class="source-list">{references}</ul></section>')
+        toc+='<a href="#sources">공식 자료</a>'
+    idx=APPENDICES.index(item)
+    before=f'<a href="{appendix_url(APPENDICES[idx-1],"../")}"><small>← 이전 부록</small>{esc(APPENDICES[idx-1]["title"])}</a>' if idx else f'<a href="{lesson_url(LESSONS[-1],"../")}"><small>← 마지막 단원</small>{esc(LESSONS[-1]["title"])}</a>'
+    after=f'<a href="{appendix_url(APPENDICES[idx+1],"../")}"><small>다음 부록 →</small>{esc(APPENDICES[idx+1]["title"])}</a>' if idx<len(APPENDICES)-1 else '<a href="../index.html"><small>처음으로 →</small>전체 학습 로드맵</a>'
+    intro=f'<div class="appendix-intro">{rich(item["intro"])}</div>' if item.get('intro') else ''
+    body=f'''<div class="breadcrumb"><a href="../index.html">로드맵</a> / 부록 / {esc(item['no'])}</div><section class="lesson-hero"><div class="eyebrow">APPENDIX {esc(item['no'])}</div><h1>{esc(item['title'])}</h1><p>{esc(item['desc'])}</p><div class="lesson-meta"><span class="pill accent">{esc(item['short'])}</span><span class="pill">필요할 때 찾아보는 참고 자료</span></div></section>
+<div class="lesson-layout"><article class="lesson-body">{intro}{''.join(sections)}<nav class="next-prev" aria-label="이전 다음 부록">{before}{after}</nav></article><aside class="toc" aria-label="페이지 목차"><p>IN THIS APPENDIX</p>{toc}</aside></div>'''
+    put(THEORY/APPENDIX_DIR/f'{item["slug"]}.html',page(item['title'],body,'../','A:'+item['slug']))
 
 def render_home():
     levels=[]
@@ -148,19 +313,25 @@ def render_home():
             if item['level']!=lvl:continue
             rows.append(f'<a class="lesson-row" data-lesson="{item["id"]}" href="{lesson_url(item)}"><span class="row-no">{item["id"]}</span><span><h4>{esc(item["title"])}</h4><p>{esc(item["short"])}</p></span><span class="duration">{item["minutes"]} MIN</span><span class="row-arrow" aria-hidden="true">↗</span></a>')
         levels.append(f'<section class="level-card"><div class="level-head"><span class="level-badge"><small>LEVEL</small><b>{num}</b></span><div><h3>{lvl} · {title}</h3><p>{desc}</p></div><span>4 LESSONS</span></div>{"".join(rows)}</section>')
+    if APPENDICES:
+        rows=''.join(f'<a class="appendix-row" href="{appendix_url(item)}"><span class="row-no">{item["no"]}</span><span><h4>{esc(item["title"])}</h4><p>{esc(item["short"])}</p></span><span class="duration">REFERENCE</span><span class="row-arrow" aria-hidden="true">↗</span></a>' for item in APPENDICES)
+        levels.append(f'<section class="level-card appendix-card"><div class="level-head"><span class="level-badge"><small>EXTRA</small><b>+</b></span><div><h3>부록 · 필요할 때 찾아보기</h3><p>CLI와 운영 도구, Kafka 생태계, 용어집</p></div><span>{len(APPENDICES)} PAGES</span></div>{rows}</section>')
     hero_svg='''<svg viewBox="0 0 560 330" role="img" aria-labelledby="hero-title"><title id="hero-title">이벤트가 Producer에서 Kafka 파티션을 거쳐 독립된 두 Consumer Group으로 흐르는 구조</title><defs><pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#c8d5c3"/></pattern><marker id="ha" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L8 4L0 8" fill="none" stroke="#8c9e84"/></marker></defs><rect width="560" height="330" fill="url(#grid)"/><g fill="none" stroke="#91a284" stroke-width="1.5" marker-end="url(#ha)"><path d="M108 165H168"/><path d="M364 145C402 145 385 87 420 87"/><path d="M364 185C402 185 385 246 420 246"/></g><rect x="12" y="128" width="98" height="74" rx="12" fill="#fff" stroke="#c9d4c2"/><text x="61" y="158" text-anchor="middle" font-size="11" fill="#223b32" font-family="Consolas,monospace">PRODUCER</text><text x="61" y="180" text-anchor="middle" font-size="10" fill="#728367" font-family="Malgun Gothic,sans-serif">주문 생성</text><rect x="170" y="63" width="195" height="205" rx="14" fill="#182c30"/><text x="189" y="91" fill="#eef2e9" font-size="11" font-family="Consolas,monospace">KAFKA / orders</text><text x="189" y="111" fill="#99b09d" font-size="9" font-family="Consolas,monospace">APPEND-ONLY LOG</text><g fill="#2c4547"><rect x="188" y="128" width="159" height="30" rx="5"/><rect x="188" y="169" width="159" height="30" rx="5"/><rect x="188" y="210" width="159" height="30" rx="5"/></g><g fill="#b6c9b5" font-size="9" font-family="Consolas,monospace"><text x="196" y="147">P0</text><text x="196" y="188">P1</text><text x="196" y="229">P2</text></g><g fill="#b6ca84"><rect x="223" y="136" width="18" height="14" rx="3"/><rect x="246" y="136" width="18" height="14" rx="3"/><rect x="269" y="136" width="18" height="14" rx="3"/><rect x="223" y="177" width="18" height="14" rx="3"/><rect x="246" y="177" width="18" height="14" rx="3"/><rect x="223" y="218" width="18" height="14" rx="3"/></g><rect x="292" y="136" width="18" height="14" rx="3" fill="#ee8157"/><rect x="420" y="50" width="127" height="74" rx="12" fill="#fff" stroke="#c9d4c2"/><rect x="420" y="210" width="127" height="74" rx="12" fill="#fff" stroke="#c9d4c2"/><g text-anchor="middle" font-family="Consolas,Malgun Gothic,sans-serif"><text x="483" y="79" font-size="11" fill="#294637">GROUP A</text><text x="483" y="101" font-size="10" fill="#728367">주문 알림</text><text x="483" y="240" font-size="11" fill="#294637">GROUP B</text><text x="483" y="262" font-size="10" fill="#728367">매출 집계</text></g><circle cx="137" cy="165" r="5" fill="#d96c43"/><circle cx="395" cy="108" r="4" fill="#d96c43"/><circle cx="395" cy="218" r="4" fill="#d96c43"/><text x="266" y="299" text-anchor="middle" font-size="9" fill="#6a7e60" font-family="Consolas,monospace">STORE ONCE. READ INDEPENDENTLY.</text></svg>'''
-    body=f'''<section class="hero"><div><div class="eyebrow">LEARN BY FOLLOWING THE EVENT</div><h1>메시지 하나로,<br><em>분산 시스템을</em><br>이해하다.</h1><p>Kafka가 처음이어도 괜찮습니다.<br>주문 이벤트 하나를 따라 원리를 읽고, 흐름을 보고,<br>직접 코드를 실행하며 단계적으로 익혀 보세요.</p><div class="hero-actions"><a class="button" data-resume href="{lesson_url(LESSONS[0])}">01. 첫 학습 시작하기 ↗</a><a class="button secondary" href="#curriculum">전체 과정 살펴보기 ↓</a></div></div><div class="hero-art"><p class="art-label">ANATOMY OF AN EVENT</p>{hero_svg}<div class="art-footer"><span>evt-001 / order-001</span><span>PRODUCE → STORE → CONSUME</span></div></div></section><div class="stats"><div class="stat"><strong>03</strong><small>초급 → 중급 → 고급</small></div><div class="stat"><strong>12</strong><small>이론과 실습을 연결한 단원</small></div><div class="stat"><strong>12</strong><small>데이터 흐름 SVG 이미지</small></div><div class="stat"><strong data-progress-count>0 / 12</strong><small>완료한 단원 · 브라우저 저장</small></div></div><section id="curriculum"><div class="section-heading"><div><span class="section-no">THE LEARNING PATH</span><h2>원리에서 실행까지, 한 단계씩.</h2><p>각 단원은 개념 → 흐름 그림 → 코드 → 실습 → 이해도 확인으로 이어집니다.</p></div><div class="search-wrap"><label class="sr-label" for="search">단원 검색</label><input class="search" id="search" data-search placeholder="예: 파티션, Outbox, 트랜잭션" type="search"><div class="search-feedback" role="status"></div></div></div><div class="curriculum-list">{''.join(levels)}</div></section><div class="bottom-grid"><section class="note-card"><span class="section-no">BEFORE YOU START</span><h3>준비는 가볍게, 관찰은 꼼꼼하게.</h3><p>JSON과 기본 프로그래밍 지식, 실행 중인 Docker Desktop이면 시작할 수 있습니다. Java 21과 Maven은 컨테이너로 제공합니다.</p><ol><li>예상 결과를 먼저 적습니다.</li><li>실행 로그의 key · partition · offset을 비교합니다.</li><li>장애를 만들고 재시작해 결과를 설명합니다.</li></ol><p>12단원 첫 학습 약 11.5시간 + 반복 실험·최종 프로젝트. 권장 속도는 주 2단원, 총 6주입니다. 설치·디버깅 시간은 별도입니다.</p></section><section class="note-card dark"><span class="section-no">ONE PROJECT, MANY LESSONS</span><h3>주문 이벤트 하나로 끝까지 연결합니다.</h3><p>OrderEvent → Producer → Kafka → Consumer.<br>여기에 중복 방지, 실패 기록, DB Outbox와 Streams를 더해, 정상 동작과 복구를 함께 익힙니다.</p><p><code>이론/초급 · 중급 · 고급</code><br><code>실습/초급 · 중급 · 고급</code></p><p><a href="{link('../실습/README.md')}">실습 환경과 명령 안내 ↗</a> &nbsp; <a href="{link('../실습/최종-프로젝트.md')}">최종 프로젝트 ↗</a></p></section></div>'''
+    total_minutes=sum(x['minutes'] for x in LESSONS)
+    hours=f'{total_minutes/60:.1f}'.rstrip('0').rstrip('.')
+    body=f'''<section class="hero"><div><div class="eyebrow">LEARN BY FOLLOWING THE EVENT</div><h1>메시지 하나로,<br><em>분산 시스템을</em><br>이해하다.</h1><p>Kafka가 처음이어도 괜찮습니다.<br>주문 이벤트 하나를 따라 원리를 읽고, 흐름을 보고,<br>직접 코드를 실행하며 단계적으로 익혀 보세요.</p><div class="hero-actions"><a class="button" data-resume href="{lesson_url(LESSONS[0])}">01. 첫 학습 시작하기 ↗</a><a class="button secondary" href="#curriculum">전체 과정 살펴보기 ↓</a></div></div><div class="hero-art"><p class="art-label">ANATOMY OF AN EVENT</p>{hero_svg}<div class="art-footer"><span>evt-001 / order-001</span><span>PRODUCE → STORE → CONSUME</span></div></div></section><div class="stats"><div class="stat"><strong>03</strong><small>초급 → 중급 → 고급</small></div><div class="stat"><strong>12</strong><small>이론과 실습을 연결한 단원</small></div><div class="stat"><strong>{len(APPENDICES):02d}</strong><small>부록 · CLI, 생태계, 용어집</small></div><div class="stat"><strong data-progress-count>0 / 12</strong><small>완료한 단원 · 브라우저 저장</small></div></div><section id="curriculum"><div class="section-heading"><div><span class="section-no">THE LEARNING PATH</span><h2>원리에서 실행까지, 한 단계씩.</h2><p>각 단원은 개념 → 흐름 그림 → 코드 → 실습 → 로그 수집 적용 → 이해도 확인으로 이어집니다.</p></div><div class="search-wrap"><label class="sr-label" for="search">단원 검색</label><input class="search" id="search" data-search placeholder="예: 파티션, Outbox, 용어집" type="search"><div class="search-feedback" role="status"></div></div></div><div class="curriculum-list">{''.join(levels)}</div></section><div class="bottom-grid"><section class="note-card"><span class="section-no">BEFORE YOU START</span><h3>준비는 가볍게, 관찰은 꼼꼼하게.</h3><p>JSON과 기본 프로그래밍 지식, 실행 중인 Docker Desktop이면 시작할 수 있습니다. Java 21과 Maven은 컨테이너로 제공합니다.</p><ol><li>예상 결과를 먼저 적습니다.</li><li>실행 로그의 key · partition · offset을 비교합니다.</li><li>장애를 만들고 재시작해 결과를 설명합니다.</li></ol><p>12단원 첫 학습 약 {hours}시간 + 반복 실험·최종 프로젝트. 권장 속도는 주 2단원, 총 6주입니다. 설치·디버깅 시간은 별도입니다.</p></section><section class="note-card dark"><span class="section-no">ONE PROJECT, MANY LESSONS</span><h3>주문 이벤트 하나로 끝까지 연결합니다.</h3><p>OrderEvent → Producer → Kafka → Consumer.<br>여기에 중복 방지, 실패 기록, DB Outbox와 Streams를 더해, 정상 동작과 복구를 함께 익힙니다.</p><p><code>이론/초급 · 중급 · 고급 · 부록</code><br><code>실습/초급 · 중급 · 고급</code></p><p><a href="{link('../실습/README.md')}">실습 환경과 명령 안내 ↗</a> &nbsp; <a href="{link('../실습/최종-프로젝트.md')}">최종 프로젝트 ↗</a></p></section></div>'''
     put(THEORY/'index.html',page('학습 로드맵',body))
 
 def main():
     assert len(LESSONS)==12 and len({x['id'] for x in LESSONS})==12
     for item in LESSONS: render_lesson(item)
+    for item in APPENDICES: render_appendix(item)
     render_home()
     for lvl,num,title,desc in LEVELS:
         items=[x for x in LESSONS if x['level']==lvl]
-        put(PRACTICE/lvl/'README.md',f'# {lvl} — {title}\n\n{desc}\n\n'+''.join(f'- [{x["id"]}. {x["short"]}]({x["labfile"]})\n' for x in items)+'\n단원마다 먼저 대응 이론 HTML을 읽고, 실행 → 예상 결과 비교 → 추가 실험 순서로 진행합니다.\n')
+        put(PRACTICE/lvl/'README.md',f'# {lvl}: {title}\n\n{desc}\n\n'+''.join(f'- [{x["id"]}. {x["short"]}]({x["labfile"]})\n' for x in items)+'\n단원마다 먼저 대응 이론 HTML을 읽고, 실행 → 예상 결과 비교 → 결과 해석 → 추가 실험 순서로 진행합니다.\n')
     put(THEORY/'assets'/'icon.svg','<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><rect width="48" height="48" rx="12" fill="#182c30"/><g stroke="#e87a50" stroke-width="3" fill="#182c30"><path d="M17 13v23m0-18l17-8m-17 15l17 10"/><circle cx="17" cy="15" r="5"/><circle cx="17" cy="34" r="5"/><circle cx="34" cy="10" r="4"/><circle cx="34" cy="35" r="4"/></g></svg>')
     put(ROOT/'index.html','<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=이론/index.html"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Kafka 학습 시작</title></head><body><p><a href="이론/index.html">Kafka Field Guide 학습 페이지 열기 →</a></p></body></html>')
-    print(f'Built {len(LESSONS)} lessons, SVG diagrams, and matching practice guides.')
+    print(f'Built {len(LESSONS)} lessons, {len(APPENDICES)} appendices, SVG diagrams, and matching practice guides.')
 
 if __name__=='__main__': main()

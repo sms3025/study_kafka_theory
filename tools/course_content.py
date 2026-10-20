@@ -1,4 +1,16 @@
-"""Course authoring source. build_theory.py renders HTML and matching lab guides."""
+"""Course authoring source. build_theory.py renders HTML and matching lab guides.
+
+단원 본문은 tools/content/lesson_XX.py, 부록은 tools/content/appendix.py에 있습니다.
+이 파일은 공식 출처 목록, 추가 코드 발췌, 단원 목록의 조립만 담당합니다.
+
+본문 문자열에는 간단한 표기법을 쓸 수 있습니다.
+- 빈 줄로 문단을 나눕니다.
+- '- '로 시작하는 줄은 글머리표 목록, '1. '로 시작하는 줄은 번호 목록이 됩니다.
+- `코드`는 고정폭 글꼴, **강조**는 굵은 글씨가 됩니다.
+- ```text / ```java / ```powershell 로 감싼 부분은 코드 블록이 됩니다.
+"""
+import importlib
+
 SOURCES = {
     'intro': ('Kafka 핵심 개념', 'https://kafka.apache.org/43/getting-started/introduction/'),
     'producer': ('Producer API / 트랜잭션', 'https://kafka.apache.org/43/javadoc/org/apache/kafka/clients/producer/KafkaProducer.html'),
@@ -7,10 +19,22 @@ SOURCES = {
     'kraft': ('KRaft 운영', 'https://kafka.apache.org/43/operations/kraft/'),
     'pconfig': ('Producer 설정', 'https://kafka.apache.org/43/configuration/producer-configs/'),
     'cconfig': ('Consumer 설정', 'https://kafka.apache.org/43/configuration/consumer-configs/'),
+    'tconfig': ('토픽 설정', 'https://kafka.apache.org/43/configuration/topic-configs/'),
+    'rebalance': ('Consumer Rebalance Protocol (KIP-848)', 'https://kafka.apache.org/43/operations/consumer-rebalance-protocol/'),
+    'elr': ('Eligible Leader Replicas (KIP-966)', 'https://kafka.apache.org/43/operations/eligible-leader-replicas/'),
     'streams': ('Streams DSL', 'https://kafka.apache.org/43/streams/developer-guide/dsl-api/'),
     'postgres': ('PostgreSQL SELECT / SKIP LOCKED', 'https://www.postgresql.org/docs/17/sql-select.html'),
     'monitor': ('Kafka 모니터링', 'https://kafka.apache.org/43/operations/monitoring/'),
     'security': ('Kafka 보안', 'https://kafka.apache.org/43/security/'),
+    'connect': ('Kafka Connect 사용자 가이드', 'https://kafka.apache.org/43/kafka-connect/user-guide/'),
+    'kip1030': ('KIP-1030: 4.0의 기본값 변경 (linger.ms 등)', 'https://cwiki.apache.org/confluence/display/KAFKA/KIP-1030:+Change+constraints+and+default+values+for+various+configurations'),
+    'release42': ('Apache Kafka 4.2.0 릴리스 공지', 'https://kafka.apache.org/blog/2026/02/17/apache-kafka-4.2.0-release-announcement/'),
+    'release43': ('Apache Kafka 4.3.0 릴리스 공지', 'https://kafka.apache.org/blog/2026/05/22/apache-kafka-4.3.0-release-announcement/'),
+    'spring-kafka': ('Spring for Apache Kafka: 오류 처리와 DLT', 'https://docs.spring.io/spring-kafka/reference/4.1/kafka/annotation-error-handling.html'),
+    'schema-evolution': ('Schema Registry 호환성 규칙 (Confluent)', 'https://docs.confluent.io/platform/7.4/schema-registry/fundamentals/schema-evolution.html'),
+    'kafbat': ('Kafbat UI 시작하기', 'https://ui.docs.kafbat.io/overview/getting-started'),
+    'clickhouse-kafka': ('ClickHouse Kafka 테이블 엔진', 'https://clickhouse.com/docs/integrations/kafka/kafka-table-engine'),
+    'fluentbit-kafka': ('Fluent Bit Kafka 출력 플러그인', 'https://docs.fluentbit.io/manual/4.1/data-pipeline/outputs/kafka'),
 }
 
 ADDITIONAL_SNIPPETS = {
@@ -20,194 +44,10 @@ ADDITIONAL_SNIPPETS = {
 }
 
 # Commands run from the repository root in PowerShell. No installed host JDK needed.
-LESSONS = [
-dict(id='01',level='초급',title='메시지는 어디로 갈까?',short='이벤트와 Kafka의 구조',minutes=35,
-desc='주문 한 건이 여러 서비스에 도착하는 길을 따라가며 Kafka의 역할을 이해합니다.',
-goals=['요청·응답과 이벤트 전달을 구분한다','Producer → Broker → Consumer의 책임을 설명한다','토픽을 만들고 저장된 메시지를 읽는다'],
-concept=[
-('이벤트는 이미 일어난 사실입니다','“이 주문을 처리해 주세요”라는 명령과 “주문이 생성되었습니다”라는 이벤트는 의도가 다릅니다. 여기서는 주문 생성 사실을 eventId, orderId, amount, occurredAt으로 표현합니다. 이벤트를 받은 서비스는 자기 업무에 맞게 반응합니다.'),
-('Kafka는 이벤트를 저장하고 전달합니다','Producer가 레코드를 브로커에 기록하면 Consumer는 필요한 위치부터 읽습니다. Producer는 모든 Consumer의 주소를 알 필요가 없습니다. Consumer가 중단되어도 보관 기간 안의 기록을 나중에 다시 읽을 수 있습니다.'),
-('비동기 처리는 성공의 시점을 나눕니다','Kafka 전송 성공은 주문 알림 전송 성공과 다릅니다. 브로커가 기록을 확인했다는 의미와, Consumer가 업무 처리를 끝냈다는 의미를 분리해서 관찰해야 합니다. 후속 처리 지연과 실패를 다룰 설계도 필요합니다.'),
-('언제 도입할까요?','독립된 여러 구독자, 이벤트 재처리, 많은 이벤트의 지속적 처리가 필요할 때 검토합니다. 단순 CRUD 서비스에 새로운 운영 부담을 더할 이유는 적을 수 있습니다. 이벤트의 필요성부터 설명할 수 있어야 합니다.')],
-example='쇼핑몰에서 주문이 생성되면 알림 서비스는 문자를 보내고 통계 서비스는 매출을 집계합니다. 통계 서비스가 잠시 멈춰도 주문 생성과 알림 처리는 계속될 수 있습니다. 서비스 간 데이터는 즉시 일치하지 않을 수 있습니다.',
-nodes=[('주문 서비스','Producer · 사실 발행',40,140),('orders 토픽','Broker · 로그에 저장',340,140),('알림 서비스','Group: notification',650,40),('통계 서비스','Group: analytics',650,240)],edges=[(0,1,'전송 / ack'),(1,2,'독립 구독'),(1,3,'독립 구독')],
-steps=['주문 생성: eventId=evt-001을 발급합니다.','Producer가 orders 토픽에 레코드를 전송합니다.','Broker가 설정된 ack 조건을 만족한 뒤 응답합니다.','알림 Consumer가 이벤트를 읽고 처리합니다.','통계 Consumer도 자기 그룹의 위치에서 같은 이벤트를 읽습니다.'],
-snippet=('초급/src/main/java/study/kafka/TopicAdmin.java','topic-create'),
-explain=['NewTopic(name, 3, rf)는 토픽당 파티션 3개와 복제 수를 명시합니다. 토픽 생성을 자동화에 맡기되 설정을 눈으로 확인합니다.','토픽 보관 기간은 7일입니다. 이 예제는 학습용이며 운영 보관 기간은 재처리 요구와 저장 공간으로 결정합니다.','auto.create.topics.enable=false이므로 오타 난 토픽에 조용히 쓰는 것을 막고 init 단계에서 명시적으로 생성합니다.'],
-commands=[('환경 시작',r'.\실습\study.ps1 up','Kafka와 PostgreSQL이 healthy가 됩니다. 첫 실행은 이미지 다운로드 시간이 필요합니다.'),('코드 빌드',r'.\실습\study.ps1 build','실습/target/kafka-labs.jar가 생성됩니다.'),('토픽 생성',r'.\실습\study.ps1 init','orders 등 5개 토픽과 각 파티션의 Leader/Replicas/ISR가 출력됩니다.'),('첫 이벤트',r'.\실습\study.ps1 run producer 3 orders day01','SENT 3줄이 출력됩니다.'),('읽기',r'.\실습\study.ps1 run consumer day01-reader 3 orders','RECEIVED 3줄과 CONSUMED 3이 출력됩니다.')],
-experiment=['새 그룹 day01-other로 같은 3건을 다시 읽어 보세요. 읽었다고 레코드가 삭제되지는 않습니다.','동일한 그룹으로 재실행하면 커밋한 위치에서 이어 읽습니다. 새 메시지가 없으면 25초 뒤 종료합니다.'],
-pitfall='실습 명령은 현재 저장된 데이터에 이어서 작동합니다. 처음부터 관찰하고 싶으면 새 group 이름을 쓰세요. 기존 그룹에 earliest를 설정하는 것만으로 처음부터 돌아가지는 않습니다.',
-quiz=('Producer가 전송 성공 응답을 받았습니다. 확실히 말할 수 있는 것은?', ['모든 서비스의 업무 처리가 끝났다','설정된 ack 조건에 따라 Kafka 기록이 확인되었다','이 이벤트는 다시 읽을 수 없다'],1,'Kafka 기록 확인과 Consumer의 업무 완료는 서로 다른 시점입니다.'),sources=['intro','design']),
-
-dict(id='02',level='초급',title='순서와 병렬 처리의 경계',short='Partition · Key · Offset',minutes=40,
-desc='같은 주문의 이벤트를 묶고, 파티션 안에서 순서와 위치를 관찰합니다.',
-goals=['파티션별 순서 보장을 설명한다','key와 partition의 관계를 확인한다','offset을 토픽 전체의 번호로 오해하지 않는다'],
-concept=[('파티션은 독립된 로그입니다','토픽 하나는 여러 파티션으로 나뉩니다. 각 파티션에는 레코드가 append되고 위치인 offset이 붙습니다. P0의 offset 7과 P1의 offset 7은 서로 다른 레코드입니다. 여러 파티션의 모든 이벤트를 하나의 전역 순서로 읽을 수 있다고 가정하면 안 됩니다.'),('Key는 함께 처리할 대상을 나타냅니다','기본 파티셔닝에서 직렬화된 key는 파티션 선택에 쓰입니다. 파티션 수와 파티셔너가 유지되면 같은 key는 같은 파티션으로 갑니다. 서로 다른 key가 같은 파티션에 배치될 수도 있습니다. “주문 3개니까 파티션마다 하나”는 보장되지 않습니다.'),('순서 설계는 업무 단위에서 시작합니다','주문 생성 → 결제 → 취소의 순서가 주문 단위로 중요하면 orderId를 key로 검토합니다. 여러 Producer의 동시 전송이나 Consumer 내부 비동기 병렬 처리는 업무상 순서에 별도 제어가 필요합니다.'),('파티션 증설에는 비용이 있습니다','파티션 수를 바꾸면 기본 key 분배도 바뀔 수 있습니다. 기존 기록은 원래 파티션에 남고 새 기록이 다른 파티션에 갈 수 있습니다. key별 순서와 부하 쏠림을 함께 평가해야 합니다.')],
-example='order-0의 생성과 변경 이벤트를 같은 key로 보냅니다. 두 이벤트의 partition이 같은지, 그 파티션의 offset이 증가하는지 확인합니다. 다른 주문과의 출력 순서는 비교 대상이 아닙니다.',
-nodes=[('Producer','key = orderId',30,140),('Partition 0','offset 0 → 1 → 2',330,20),('Partition 1','offset 0 → 1',330,140),('Partition 2','offset 0 → 1 → 2 → 3',330,260),('업무 처리','파티션 안에서 순서 관찰',650,140)],edges=[(0,1,'key로 선택'),(0,2,''),(0,3,''),(1,4,''),(2,4,''),(3,4,'')],
-steps=['order-A, order-B가 차례로 발생합니다.','설명용 배치: order-A는 P0, order-B는 P2로 이동합니다. 실제 key 배치는 실행 로그로 확인하세요.','order-A의 다음 이벤트도 P0 끝에 기록됩니다.','P0와 P2의 offset은 각각 독립적으로 증가합니다.','Consumer 출력에서는 다른 파티션의 레코드가 섞일 수 있습니다.'],
-snippet=('초급/src/main/java/study/kafka/OrderProducer.java','keyed-send'),
-explain=['ProducerRecord의 두 번째 인자가 key입니다. 이 코드에서는 orderId를 사용합니다.','같은 key의 이벤트가 여러 번 발생하도록 i % 3을 사용했습니다. 로그에서 partition과 offset을 비교하세요.','send().get()은 학습 중 ack와 실패를 확인하기 위한 직렬 전송입니다. 대량 전송에서는 비동기 callback, 배치, 제한된 대기열을 함께 설계합니다.'],
-commands=[('주문 이벤트 전송',r'.\실습\study.ps1 run producer 12 orders day02','3가지 key에 대해 SENT 로그 12줄이 출력됩니다.'),('파티션 정보',r'.\실습\study.ps1 topics','orders에 P0~P2가 있고 각 파티션의 Leader가 표시됩니다.'),('읽기',r'.\실습\study.ps1 run consumer day02-reader 0 orders','그룹이 처음이라면 기존 기록도 읽습니다. key별 partition과 offset을 기록하세요.')],
-experiment=['전송 로그에서 order-0에 해당하는 줄만 골라 partition이 같은지 확인하세요.','key 3개가 반드시 서로 다른 파티션에 들어가는지 검증하세요. 충돌은 정상입니다.'],
-pitfall='그림의 order-A → P0 배치는 설명용입니다. 특정 문자열이 특정 파티션으로 간다고 하드코딩하지 않습니다. 파티션 수를 바꿔 보는 실험은 새 토픽으로 분리하는 편이 비교하기 쉽습니다.',
-quiz=('Kafka가 기본적으로 보장하는 순서의 범위는?', ['토픽 전체','클러스터 전체','각 파티션 내부'],2,'하나의 토픽에 여러 파티션이 있으면 파티션 간 전역 순서는 보장되지 않습니다.'),sources=['intro','producer']),
-
-dict(id='03',level='초급',title='여러 Consumer는 어떻게 나눠 읽을까?',short='Consumer Group · Rebalance',minutes=45,
-desc='같은 그룹의 분담과 다른 그룹의 독립 구독을 구분합니다.',
-goals=['동일 그룹과 다른 그룹의 차이를 관찰한다','파티션 수와 Consumer 병렬성의 관계를 설명한다','리밸런싱 시 할당 변화를 읽는다'],
-concept=[('그룹은 하나의 논리적 구독자입니다','일반 Consumer Group에서는 각 파티션을 그룹 내 하나의 Consumer가 담당합니다. Consumer 프로세스를 늘리면 담당 파티션을 분담할 수 있습니다. 파티션 3개에 Consumer가 4개라면 적어도 하나는 이 토픽의 파티션을 받지 못합니다.'),('다른 그룹은 독립적으로 읽습니다','notification과 analytics는 별도 그룹이므로 각자 토픽 전체를 읽고 자기 offset을 커밋합니다. 알림 Consumer가 읽었다고 통계 Consumer의 진행 위치가 바뀌지 않습니다.'),('구성원이 바뀌면 할당을 조정합니다','가입·종료·장애로 파티션 할당이 바뀌는 과정을 리밸런싱이라고 부릅니다. 이때 처리 중 작업, 커밋, 중복 가능성을 고려해야 합니다. 정확한 배정 모양은 assignor와 프로토콜에 따라 달라질 수 있습니다.'),('느린 처리는 그룹 안정성에도 영향을 줍니다','poll 이후 처리가 max.poll.interval.ms보다 오래 걸리면 Consumer가 그룹에서 제외될 수 있습니다. max.poll.records를 줄이거나 작업 시간을 제한하고, 스레드로 분리할 때도 파티션별 완료 순서를 추적해야 합니다. KafkaConsumer는 일반적으로 스레드 안전하지 않습니다.')],
-example='알림 서비스 인스턴스 두 개는 group.id=notify로 실행합니다. 통계 서비스는 group.id=analytics로 실행합니다. notify 안에서는 분담하고, analytics는 주문 전체를 별도로 처리합니다.',
-nodes=[('orders · P0','독립 로그',30,20),('orders · P1','독립 로그',30,140),('orders · P2','독립 로그',30,260),('notify / Consumer A','예: P0, P1 담당',330,65),('notify / Consumer B','예: P2 담당',330,245),('analytics 그룹','P0 · P1 · P2 모두 구독',650,140)],edges=[(0,3,''),(1,3,''),(2,4,''),(0,5,'독립 구독'),(2,5,'')],
-steps=['Consumer A가 notify 그룹으로 가입합니다.','Consumer B도 notify로 가입해 파티션을 분담합니다.','analytics 그룹은 전체 파티션을 별도로 읽습니다.','Consumer A가 종료되면 B에 담당 파티션이 재배정됩니다.','마지막 커밋 이후부터 이어 읽으므로 미커밋 처리는 다시 실행될 수 있습니다.'],
-snippet=('초급/src/main/java/study/kafka/OrderConsumer.java','poll-loop'),
-explain=['group.id는 Settings.consumerProperties에서 설정합니다. 같은 이름을 주면 같은 구독의 구성원이 됩니다.','ASSIGNED와 REVOKED 로그는 리밸런싱 시점의 할당 변화를 표시합니다.','개별 레코드 처리 후 해당 파티션의 다음 offset만 커밋하므로, 아직 처리하지 않은 poll 배치를 넘겨 커밋하지 않습니다.'],
-commands=[('터미널 A',r'.\실습\study.ps1 run consumer notify-demo 0 orders 500','Consumer가 실행됩니다. 기록이 없으면 25초 뒤 종료하므로 이어지는 명령을 바로 실행하세요.'),('터미널 B',r'.\실습\study.ps1 run consumer notify-demo 0 orders 500','동일 그룹으로 가입하고 ASSIGNED 로그가 바뀝니다.'),('터미널 C',r'.\실습\study.ps1 run consumer analytics-demo 0 orders','다른 그룹은 기록 전체를 독립적으로 읽습니다.'),('터미널 D',r'.\실습\study.ps1 run producer 60 orders day03','notify 그룹 두 Consumer의 처리 합계와 analytics 그룹의 처리량을 비교합니다.')],
-experiment=['A와 B의 ASSIGNED 파티션이 같은 시점에 겹치는지 확인하세요.','동일 그룹 Consumer를 4개 실행해 할당이 비어 있는 Consumer를 찾아보세요.','실행 중 하나를 종료하고 남은 Consumer의 REVOKED/ASSIGNED 로그를 확인하세요.'],
-pitfall='이 강의는 일반 Consumer Group을 다룹니다. 레코드 단위 분배를 제공하는 Share Group은 별도 모델입니다. 그룹의 멤버 수와 파티션 수 관계를 모든 Kafka 소비 방식에 일반화하지 마세요.',
-quiz=('알림과 통계가 각각 모든 이벤트를 받아야 할 때 group.id는?', ['항상 같아야 한다','서로 달라야 한다','파티션 번호여야 한다'],1,'서로 다른 그룹은 같은 토픽을 독립적으로 구독하고 각자 offset을 관리합니다.'),sources=['intro','consumer','cconfig']),
-
-dict(id='04',level='초급',title='Java로 첫 파이프라인 만들기',short='Producer · Consumer API',minutes=60,
-desc='JSON 이벤트를 만들고, 전송 결과와 소비 위치를 코드에서 다룹니다.',
-goals=['직렬화와 역직렬화를 설명한다','비동기 send의 결과를 확인한다','설정과 업무 코드를 구분한다'],
-concept=[('네트워크에는 바이트가 흐릅니다','Java 객체는 그대로 네트워크에 전달되지 않습니다. 이 예제는 OrderEvent를 JSON 문자열로 바꾸고 StringSerializer로 UTF-8 바이트를 만듭니다. Consumer는 StringDeserializer로 복원한 뒤 업무 코드에서 JSON을 읽습니다.'),('send는 비동기 API입니다','send가 반환했다고 브로커 기록이 끝난 것은 아닙니다. Future.get이나 callback에서 성공·실패를 확인합니다. 실제 서비스에서는 전송 실패가 API 응답, 재시도, 알람에 어떻게 연결되는지 결정해야 합니다.'),('멱등 Producer를 명시합니다','enable.idempotence=true는 Producer 내부 재시도로 중복 기록이 생기는 상황을 제어합니다. 같은 eventId로 애플리케이션이 send를 두 번 호출하는 것을 제거해 주지는 않습니다. DB 업무의 중복 방지는 중급에서 별도로 구현합니다.'),('자원과 종료도 코드의 일부입니다','Producer와 Consumer를 닫아 네트워크 자원과 백그라운드 스레드를 정리합니다. 예제는 유한 실행과 try-with-resources를 사용합니다. 장기 운영 서비스에서는 종료 신호, 준비 상태, 제한 시간, 미완료 작업 처리도 설계해야 합니다.')],
-example='주문 생성 함수가 반환된 시점과 Kafka 전송 ack를 받은 시점을 각각 로그로 기록한다고 생각해 보세요. 이벤트 발행 실패를 무시하면 API는 성공했는데 후속 처리는 시작되지 않는 상황이 발생할 수 있습니다.',
-nodes=[('OrderEvent','Java record → JSON',25,55),('Serializer / Buffer','바이트 변환 · 배치',330,55),('Broker Leader','로그 기록 · ack',650,55),('업무 처리','검증 → 처리 → 커밋',25,250),('Deserializer','바이트 → JSON',330,250),('Consumer poll','필요한 offset에서 읽기',650,250)],edges=[(0,1,'serialize'),(1,2,'send'),(2,5,'fetch'),(5,4,''),(4,3,'parse')],
-steps=['OrderEvent를 JSON으로 직렬화합니다.','Producer가 key/value를 바이트로 바꾸고 전송합니다.','브로커 ack 또는 전송 실패를 Future에서 확인합니다.','Consumer가 poll로 바이트를 읽고 문자열로 복원합니다.','이벤트 검증과 업무 처리가 성공하면 다음 offset을 커밋합니다.'],
-snippet=('공통/src/main/java/study/kafka/Settings.java','producer-config'),
-explain=['acks=all은 모든 브로커가 아니라 현재 ISR에 대한 확인 조건입니다. 복제 수와 min.insync.replicas를 함께 봐야 합니다.','delivery.timeout.ms는 재시도를 포함한 전송 완료 시간의 한계를 설정합니다. 타임아웃 뒤에는 결과가 불확실할 수 있어 무작정 재전송하지 않습니다.','max.in.flight.requests.per.connection=5는 멱등 Producer와 호환되는 값입니다. 운영 기본값을 맹목적으로 복사하기보다 버전별 의미를 확인하세요.'],
-commands=[('실행 옵션 확인',r'.\실습\study.ps1 run help','전체 명령과 위치 인자가 출력됩니다.'),('같은 eventId로 발행',r'.\실습\study.ps1 run producer 3 orders day04','SENT 3건입니다. 같은 명령을 한 번 더 실행하세요.'),('중복을 관찰',r'.\실습\study.ps1 run consumer java-demo 0 orders','day04-0 등 같은 eventId가 서로 다른 offset으로 두 번 존재하는지 확인합니다.'),('실제 연결 검증',r'.\실습\study.ps1 run verify','전용 토픽을 만든 뒤 송수신·커밋·트랜잭션·DB를 검증하고 ALL_CHECKS_PASSED를 출력합니다.')],
-experiment=['OrderProducer에서 amount를 바꾸고 build 후 다시 실행하세요. 빌드 전후 결과가 어떻게 다른지 확인하세요.','한글 주문 정보를 JSON의 선택 필드로 추가하고 schema 명령의 호환성 실습과 연결해 보세요.'],
-pitfall='제공 코드는 운영에서 사용하는 API와 패턴을 재현한 학습용 구현입니다. 인증, 커넥션 풀, 관측, 부하 제어, 개인정보 정책을 갖춘 완성 서비스라는 의미는 아닙니다.',
-quiz=('멱등 Producer를 사용하면서 같은 이벤트를 새 send 호출로 두 번 보내면?', ['eventId를 보고 자동으로 하나만 저장한다','두 레코드가 기록될 수 있다','항상 예외가 난다'],1,'Producer 멱등성은 애플리케이션의 업무 eventId 중복을 판별하지 않습니다.'),sources=['producer','pconfig']),
-]
-
-LESSONS += [
-dict(id='09',level='고급',title='Kafka 안에서 함께 성공시키기',short='트랜잭션 · Exactly Once의 범위',minutes=70,
-desc='출력 이벤트와 입력 offset을 하나의 Kafka 트랜잭션으로 묶습니다.',
-goals=['commit/abort와 read_committed를 비교한다','입력 offset과 출력의 원자성을 구현한다','Exactly Once를 외부 DB까지 일반화하지 않는다'],
-concept=[('여러 쓰기의 원자성을 제공합니다','트랜잭션 Producer는 여러 토픽·파티션에 대한 쓰기를 함께 commit하거나 abort할 수 있습니다. downstream이 read_committed일 때 abort된 레코드를 업무 데이터로 읽지 않습니다. read_uncommitted에서는 abort된 레코드도 보일 수 있습니다.'),('읽기 → 처리 → 쓰기를 묶습니다','입력을 읽고 결과를 보낸 뒤 sendOffsetsToTransaction으로 입력 Consumer Group의 다음 offset을 같은 트랜잭션에 포함합니다. 결과만 기록되고 입력 복구 위치는 남지 않는 분리를 제어하는 패턴입니다. 여기에는 일반 commitSync를 섞지 않습니다.'),('트랜잭션 ID와 오류 처리가 중요합니다','동시에 실행되는 Producer마다 transactional.id가 달라야 합니다. 같은 논리적 인스턴스의 재시작에는 안정된 ID를 사용하여 이전 세션을 fencing할 수 있습니다. commit timeout은 성공 여부가 불명확하므로 무조건 abort하면 안 됩니다. 이 예제는 오류를 상위로 전달하고 종료합니다.'),('Exactly Once의 경계를 말해야 합니다','Kafka 입력 offset과 Kafka 출력의 처리 결과를 묶는 보장입니다. HTTP 호출, 문자 발송, 별도 DB 커밋을 자동으로 포함하지 않습니다. 동일 업무 이벤트를 애플리케이션이 두 번 발행한 경우도 별도의 중복 방지가 필요합니다.'),('Abort 후 로컬 소비 위치를 주의합니다','abort는 Consumer의 로컬 position을 자동으로 되돌리지 않습니다. 계속 poll하려면 seek 또는 재생성으로 복구 위치를 맞춰야 합니다. 학습 코드는 처리 실패 시 abort 후 종료하여 재시작 때 커밋된 위치를 사용합니다. 열린 트랜잭션은 read_committed 가시성도 지연시킬 수 있습니다.')],
-example='orders에서 읽은 주문을 orders.tx로 전달합니다. 결과와 입력 offset이 함께 커밋되므로 재시작에 따른 처리 결과를 안정적으로 연결할 수 있습니다. 코드 안에 외부 결제 API를 넣으면 그 호출까지 같은 트랜잭션이 되는 것은 아닙니다.',
-nodes=[('orders','입력 레코드',30,140),('Transaction','beginTransaction',330,35),('orders.tx','아직 미커밋인 출력',650,35),('입력 offset','sendOffsetsToTransaction',330,245),('read_committed','commit된 출력만 읽기',650,245)],edges=[(0,1,'poll'),(1,2,'send'),(1,3,'같은 트랜잭션'),(3,4,'commit'),(2,4,'commit 후 가시화')],
-steps=['입력 주문을 poll하고 Kafka 트랜잭션을 시작합니다.','orders.tx에 결과 레코드를 씁니다. 아직 read_committed에 보이지 않습니다.','입력 그룹의 다음 offset을 트랜잭션에 포함합니다.','commit하면 출력과 입력 offset이 함께 확정됩니다.','처리 도중 실패하면 abort 후 종료합니다. 재시작하면 미커밋 입력을 다시 읽습니다.'],
-snippet=('고급/src/main/java/study/kafka/TransactionLab.java','transaction-pipeline'),
-explain=['records.nextOffsets()는 poll 배치 전체를 처리한 후 사용합니다. 이 코드는 배치 전체를 트랜잭션에 넣으므로 안전한 완료 범위입니다.','치명적인 fencing·권한 오류는 Producer를 재사용하지 않고 종료합니다. commit은 abort catch 밖에 두어 불확실한 결과를 함부로 취소하지 않습니다.','tx-process의 max는 배치 경계에서 확인하므로 지정 수보다 조금 더 처리할 수 있습니다. 다운스트림 Consumer에는 read_committed를 지정합니다.'],
-commands=[('취소된 레코드',r'.\실습\study.ps1 run tx-produce abort tx-aborted-demo','TRANSACTION ABORT가 출력됩니다.'),('확정된 레코드',r'.\실습\study.ps1 run tx-produce commit tx-committed-demo','TRANSACTION COMMIT이 출력됩니다.'),('격리 수준 비교 A',r'.\실습\study.ps1 run consumer tx-view-all 0 orders.tx 0 read_uncommitted','두 종류의 트랜잭션 레코드가 보입니다. Consumer는 제어 레코드는 반환하지 않습니다.'),('격리 수준 비교 B',r'.\실습\study.ps1 run consumer tx-view-committed 0 orders.tx 0 read_committed','abort된 tx-aborted-demo는 보이지 않습니다.'),('Kafka → Kafka 처리',r'.\실습\study.ps1 run tx-process tx-pipeline-day09 12','TX_COMMITTED와 배치 처리 수가 출력됩니다.')],
-experiment=['두 tx-process를 같은 기본 transactional.id로 동시에 실행해 fencing이 왜 필요한지 조사하세요. 실제 다중 실행은 TX_ID를 인스턴스별로 설정해야 합니다.','일반 DB 쓰기를 추가하면 보장 범위가 왜 달라지는지 그림에 별도 경계를 그려 보세요.'],
-pitfall='single 환경은 학습 편의를 위해 transaction state 복제 수와 최소 ISR을 1로 둡니다. 내구성·장애 실험은 -Cluster를 사용하세요. 트랜잭션이 업무의 모든 부작용을 원자적으로 묶는다고 표현하지 않습니다.',
-quiz=('sendOffsetsToTransaction이 묶는 대상은?', ['외부 DB와 모든 HTTP 요청','Kafka 출력과 입력 그룹의 offset','운영 로그와 알람'],1,'같은 Kafka 트랜잭션에 참여한 출력과 Consumer Group offset을 묶습니다.'),sources=['producer','consumer','design']),
-
-dict(id='10',level='고급',title='DB와 이벤트 사이의 빈틈 메우기',short='Transactional Outbox',minutes=75,
-desc='주문과 outbox를 함께 저장하고, Relay의 중복 발행까지 실험합니다.',
-goals=['DB/Kafka 이중 쓰기의 실패 구간을 찾는다','주문과 발행 의도를 원자적으로 저장한다','Relay 재발행을 Consumer 멱등성과 연결한다'],
-concept=[('DB와 Kafka를 따로 쓰면 틈이 생깁니다','주문 DB 저장 후 Kafka 발행 전에 장애가 나면 주문은 있지만 이벤트가 없습니다. 먼저 Kafka에 쓰면 DB가 실패했을 때 실재하지 않는 주문의 이벤트가 생길 수 있습니다. 호출 순서만 바꿔서는 두 시스템의 원자성이 생기지 않습니다.'),('업무 데이터와 발행 의도를 함께 저장합니다','하나의 DB 트랜잭션에서 orders_db와 outbox를 INSERT합니다. 둘 다 커밋되거나 둘 다 롤백됩니다. Relay는 아직 발행하지 않은 outbox를 찾아 Kafka에 전송합니다. 실패한 발행은 DB에 남아 다음 실행에서 다시 시도할 수 있습니다.'),('Relay는 at least once입니다','Kafka ack를 받은 직후 published_at 갱신 전에 장애가 나면 같은 outbox가 다시 발행됩니다. eventId를 유지하여 Consumer가 중복을 제거하게 합니다. 이 예제는 해당 구간에서 강제 종료하는 모드를 제공합니다.'),('SKIP LOCKED와 순서는 별개입니다','FOR UPDATE SKIP LOCKED는 여러 Relay가 같은 행을 동시에 집는 충돌을 줄입니다. 잠긴 행을 건너뛰므로 여러 Relay의 aggregate별 이벤트 순서를 자동 보장하지 않습니다. 실습은 Relay 하나를 사용합니다. 운영에서는 aggregate별 직렬화, sequence, CDC 기반 전달을 검토합니다.'),('발행 대기와 정리 정책이 필요합니다','대기 건수와 가장 오래된 미발행 이벤트의 시간을 관찰하고, published row 정리 주기를 정합니다. 예제는 네트워크 전송 동안 행 잠금을 유지하여 동작이 명확하지만, 운영에서는 긴 트랜잭션과 장애 시 재시도 비용을 평가해야 합니다.')],
-example='주문 생성 API는 주문과 outbox INSERT가 같은 DB 트랜잭션에서 커밋되면 성공합니다. 별도 Relay가 orders에 보내고, 중급의 dedup Consumer가 중복 집계를 방지합니다.',
-nodes=[('주문 생성','DB BEGIN',30,35),('orders_db + outbox','하나의 DB COMMIT',330,35),('Relay','미발행 행 잠금',650,35),('멱등 Consumer','eventId로 중복 방지',30,255),('orders / Kafka','발행 ack',330,255),('published_at 갱신','ack 후 별도 DB COMMIT',650,255)],edges=[(0,1,'동일 DB'),(1,2,'조회'),(2,4,'send'),(4,3,'consume'),(4,5,'실패 구간')],
-steps=['주문과 outbox를 같은 DB 트랜잭션에 INSERT합니다.','DB commit 후 Relay가 미발행 행을 잠급니다.','Relay가 같은 eventId를 key 정보와 함께 Kafka에 보냅니다.','여기서 장애가 나면 outbox는 미발행으로 남아 재전송됩니다.','Consumer는 eventId 중복을 제거하고 Relay는 정상 실행에서 published_at을 저장합니다.'],
-snippet=('고급/src/main/java/study/kafka/OutboxLab.java','outbox-relay'),
-explain=['Kafka send ack를 확인한 뒤에만 published_at을 갱신합니다. 반대로 표시하면 발행 전 장애 시 이벤트를 잃을 수 있습니다.','트랜잭션 경계는 DB 내부입니다. Kafka ack와 DB commit 사이의 중복 가능성을 제거했다는 뜻이 아닙니다.','createOne의 소스에서 주문 INSERT와 outbox INSERT를 묶은 트랜잭션도 함께 읽어 보세요.'],
-commands=[('발행 의도 저장',r'.\실습\study.ps1 run outbox-create 1 day10','OUTBOX_CREATED day10-0이 출력됩니다. 같은 runId 재사용은 PK 충돌이므로 새 실험에는 새 runId를 쓰세요.'),('ack 직후 장애',r'.\실습\study.ps1 run outbox-relay crash-after-send 1','RELAY_ACK 뒤 exit 17입니다. published_at은 비어 있습니다.'),('재발행',r'.\실습\study.ps1 run outbox-relay normal 10','이전에 ack된 eventId가 다시 RELAY_ACK될 수 있습니다.'),('중복 방지 확인',r'.\실습\study.ps1 run dedup outbox-dedup-day10 0 normal','재발행된 같은 eventId 중 하나가 DUPLICATE_SKIPPED입니다.'),('롤백 실험',r'.\실습\study.ps1 run outbox-create 1 day10-rollback rollback','INJECTED 오류와 비정상 종료가 예상 결과입니다. 주문과 outbox가 모두 저장되지 않아야 합니다.'),('DB 확인',r'.\실습\study.ps1 sql','outbox 발행 시각과 집계 결과를 확인합니다.')],
-experiment=['outbox-create만 실행하고 Relay를 실행하지 않아도 미발행 정보가 남는지 확인하세요.','하나의 Relay에서 복구한 뒤에만 다음 실험을 시작해, 이전 미발행 행과 새 행이 섞이지 않게 하세요.'],
-pitfall='SKIP LOCKED는 이벤트의 업무상 순서를 보장하는 기능이 아닙니다. DB 발행 표식을 남겨도 Kafka 중복 발행 구간은 남습니다. 배달 결과의 멱등성을 끝까지 유지해야 합니다.',
-quiz=('Kafka ack 직후, published_at 저장 전에 Relay가 종료되면?', ['같은 이벤트가 재발행될 수 있다','DB가 Kafka commit을 자동 복구한다','반드시 이벤트가 유실된다'],0,'outbox는 아직 미발행으로 남으므로 다음 Relay가 다시 전송할 수 있습니다.'),sources=['postgres','producer','design']),
-
-dict(id='11',level='고급',title='이벤트를 계속 계산하는 프로그램',short='Kafka Streams · 상태 저장',minutes=65,
-desc='key별 누적 count를 만들고 상태 복구와 처리 보장을 연결합니다.',
-goals=['Consumer 처리와 Streams topology를 비교한다','KStream과 집계 KTable을 구분한다','상태 저장소·changelog·application.id를 설명한다'],
-concept=[('계산의 흐름을 topology로 표현합니다','Streams는 별도 서버 제품이 아니라 애플리케이션에 포함하는 Java 라이브러리입니다. 입력 토픽 → key 선택 → 그룹화 → 집계 → 출력 토픽을 선언합니다. 내부에서 파티션 할당, 처리 작업, 상태 복구를 관리합니다.'),('KStream과 KTable은 의미가 다릅니다','KStream은 개별 이벤트의 흐름이며, count로 만든 KTable은 key별 최신 집계 상태입니다. 같은 주문 key의 이벤트가 들어올 때마다 누적 건수가 바뀝니다. 이는 매출 합계가 아니라 이벤트 건수입니다.'),('상태는 로컬 저장소와 changelog로 관리합니다','Materialized.as로 저장소 이름을 정합니다. 상태 변경을 기록하는 Kafka changelog를 통해 재시작 시 복구할 수 있습니다. key를 바꾼 뒤 groupByKey하면 repartition 토픽이 생길 수 있습니다. 내부 토픽의 복제 수와 디스크도 운영 대상입니다.'),('EOS와 업무 중복 제거는 다릅니다','exactly_once_v2는 Streams 처리와 Kafka 결과의 일관성을 지원하지만 동일 eventId가 원본에 두 번 기록된 경우의 업무 중복 제거는 아닙니다. 별도 중복 제거 topology가 없다면 두 이벤트를 모두 count합니다.'),('출력은 모든 중간값을 의미하지 않습니다','캐시와 커밋 간격 때문에 1,2,3의 모든 중간 count가 출력된다고 보장하지 않습니다. 출력 토픽의 최신 key별 값을 비교하세요. application.id를 바꾸면 독립된 입력 위치와 상태를 가진 새 처리 애플리케이션이 됩니다.')],
-example='order-0 이벤트가 4건이면 최종 count는 4입니다. 같은 이벤트를 다시 발행하면 입력 레코드가 늘어 count도 늘 수 있습니다. “이벤트 건수”와 “중복 제거한 주문 수”를 구분해야 합니다.',
-nodes=[('orders','KStream · 입력',30,35),('selectKey','orderId 기준',330,35),('groupByKey / count','key별 KTable',650,35),('orders.counts','문자열 count 출력',30,255),('상태 저장소','order-counts',330,255),('changelog','상태 복구용 Kafka 로그',650,255)],edges=[(0,1,''),(1,2,'필요 시 repartition'),(2,4,'상태 갱신'),(4,5,'복구 로그'),(4,3,'toStream')],
-steps=['orders의 JSON 이벤트를 읽습니다.','orderId를 집계 key로 선택합니다.','key별 count 상태를 갱신합니다.','상태 변경을 changelog와 함께 관리합니다.','커밋과 캐시 정책에 따라 orders.counts에 최신 count가 나타납니다.'],
-snippet=('고급/src/main/java/study/kafka/OrderStreams.java','streams-count'),
-explain=['selectKey 다음의 groupByKey가 key 기반 집계의 경계입니다. 필요한 repartition이 topology에 추가됩니다.','출력은 Long을 문자열로 바꾸고 String Serde를 명시해 일반 Consumer로 읽을 수 있게 했습니다.','유효하지 않은 입력은 이 topology를 실패시킵니다. 운영 전처리에서 검증·DLT 또는 명시적인 예외 정책을 설계해야 합니다.'],
-commands=[('60초 동안 집계',r'.\실습\study.ps1 run streams 60 order-counts-day11','STREAMS 상태가 RUNNING으로 이동하고 지정 시간 후 종료합니다.'),('다른 터미널에서 입력',r'.\실습\study.ps1 run producer 12 orders day11','주문별 이벤트가 입력됩니다. 이전 orders 기록도 같은 app의 진행 상태에 따라 집계합니다.'),('결과 조회',r'.\실습\study.ps1 run consumer count-reader-day11 0 orders.counts','key별 count 문자열이 출력됩니다. 중간값 전부가 출력될 필요는 없습니다.'),('같은 application.id로 재시작',r'.\실습\study.ps1 run streams 30 order-counts-day11','기존 입력 offset과 상태에서 복구하여 이어 처리합니다.')],
-experiment=['새 application.id로 실행한 결과와 기존 application.id로 재시작한 결과를 비교하세요.','같은 runId로 Producer를 두 번 실행해 EOS가 업무 eventId 중복 제거와 다른 이유를 확인하세요.'],
-pitfall='동일 application.id를 서로 다른 Kafka 클러스터에 쓸 때 로컬 state 디렉터리를 공유하지 마세요. single/cluster를 오갈 때는 app ID에 single/cluster 접미사를 붙여 상태를 분리합니다.',
-quiz=('이벤트 count를 만든 KTable은 무엇을 나타내나요?', ['모든 이벤트의 전역 순서','key별 최신 누적 집계 상태','외부 DB의 자동 백업'],1,'KTable은 key별 최신 상태를 나타냅니다. 입력 이벤트 로그와 같은 의미가 아닙니다.'),sources=['streams','design']),
-
-dict(id='12',level='고급',title='돌아가는 코드에서 운영 가능한 설계로',short='Lag · 스키마 · 운영 점검',minutes=70,
-desc='지연·장애·데이터 호환성을 관찰하고 최종 파이프라인을 검증합니다.',
-goals=['Lag을 처리 시간과 구분해 해석한다','추가 필드와 호환 불가 변경을 구분한다','장애·중복·복구를 포함한 완료 기준을 만든다'],
-concept=[('Lag은 시간 그 자체가 아닙니다','여기서는 파티션의 latest offset과 그룹의 committed offset 차이를 관찰합니다. 아직 커밋하지 않은 진행량이며, “몇 초 늦었다”는 뜻은 아닙니다. 트랜잭션의 가시성 경계, 제어 레코드, 실제 처리 상태에 따라 업무 메시지 건수와 다를 수 있습니다. 처리 지연은 event timestamp와 처리 시각으로 별도 계측합니다.'),('지표는 원인과 함께 봅니다','Lag 증가가 Consumer 부족, 느린 DB, 외부 API 지연, 재시도 폭증 중 어느 원인인지 구분합니다. 처리율, 오류율, poll/commit 지연, ISR 변화, 디스크 사용량, outbox 대기 시간을 함께 봅니다. 그룹에 커밋 정보가 없다는 것은 Lag 0의 증거가 아닙니다.'),('스키마는 서비스 간 계약입니다','이벤트에 선택 필드를 추가하는 변경은 구독자가 알 수 없는 필드를 허용할 때 호환될 수 있습니다. 필수 필드 삭제, 타입 변경, 단위 변경은 별도 검토가 필요합니다. 이 예제는 schemaVersion=1을 확인하고 알 수 없는 선택 필드는 무시합니다. Schema Registry를 구현한 것은 아닙니다.'),('보안과 운영 경계도 설계합니다','학습 Compose는 로컬 loopback 포트와 PLAINTEXT를 사용합니다. 운영에서는 TLS, SASL, ACL, 비밀정보 관리, 네트워크 분리, 개인정보와 보관 정책을 정해야 합니다. key나 payload에 민감한 값을 그대로 넣고 로그에 출력하지 않도록 검토합니다.'),('최종 프로젝트의 완료는 복구로 판단합니다','정상 흐름에 더해 Consumer 강제 종료, 중복 발행, 잘못된 JSON, Relay 장애, Broker 하나 중단, 재시작 복구를 검증합니다. 통합 검증 명령은 새 전용 토픽과 ID로 격리된 검사를 수행하고 자신이 만든 데이터만 정리합니다.')],
-example='Lag이 1,000이어도 초당 10,000건을 처리하면 금방 따라잡을 수 있습니다. Lag이 10이어도 한 레코드가 5분씩 외부 API를 기다리면 업무 지연은 큽니다. 숫자 하나로 장애를 판정하지 않습니다.',
-nodes=[('입력 이벤트','schemaVersion · eventId',30,35),('Consumer 처리','처리율 · 오류율',330,35),('DB / 외부 시스템','지연 · 타임아웃',650,35),('관측 / 알람','Lag + 처리 시간 + ISR',30,255),('offset / Log end','진행 위치의 차이',330,255),('복구 절차','재처리 · 중복 방지',650,255)],edges=[(0,1,'검증'),(1,2,'업무 처리'),(1,4,'커밋'),(4,3,'관측'),(3,5,'진단 후 조치')],
-steps=['호환되는 이벤트인지 검증합니다.','업무 처리 시간과 성공·실패를 기록합니다.','그룹의 committed offset과 log end를 비교합니다.','Lag 추이, 처리 지연, DB와 ISR 상태를 함께 확인합니다.','원인을 수정한 뒤 재시작·재처리하고 중복 부작용이 없는지 확인합니다.'],
-snippet=('고급/src/main/java/study/kafka/OperationsLab.java','consumer-lag'),
-explain=['Admin API로 committed offset과 latest offset을 읽습니다. 이 예제는 이미 커밋된 파티션만 조회하므로 커밋이 전혀 없는 그룹은 별도로 다뤄야 합니다.','명령을 여러 번 실행해 Lag이 쌓이고 줄어드는 추이를 관찰하세요. 브로커가 알려준 위치와 실제 업무 완료 지표를 혼동하지 않습니다.','schema 명령은 선택 필드 추가 허용과 지원하지 않는 버전 거부를 실제 OrderEvent 파서로 확인합니다.'],
-commands=[('느린 Consumer: 터미널 A',r'.\실습\study.ps1 run consumer lag-day12 0 orders 1000','레코드당 1초를 기다립니다. 이 Consumer는 출력 대역 뒤에 커밋합니다.'),('입력: 터미널 B',r'.\실습\study.ps1 run producer 60 orders day12','Consumer 처리보다 빠르게 입력을 만듭니다.'),('관측: 터미널 C',r'.\실습\study.ps1 run inspect lag-day12','next, end, lag과 Leader/ISR 정보가 출력됩니다. 주기적으로 다시 실행해 비교하세요.'),('스키마 확인',r'.\실습\study.ps1 run schema','OPTIONAL_FIELD_OK와 UNSUPPORTED_VERSION_REJECTED가 출력됩니다.'),('실제 통합 검사',r'.\실습\study.ps1 run verify','송수신, key 분배, 복구 위치, 트랜잭션 격리, DB 멱등성, Outbox 롤백이 통과합니다.')],
-experiment=['검증 명령의 PASS가 어떤 보장 범위를 확인하고, 어떤 부하·보안·성능을 확인하지 않는지 적어 보세요.','최종 프로젝트 안내에 따라 Order API 대역 → Outbox → Kafka → 집계 Consumer를 실행하고 장애 전후 결과를 기록하세요.'],
-pitfall='운영 환경은 이 학습용 Compose를 그대로 배포하는 대상이 아닙니다. 이 강의의 통합 검사는 기능적 보장을 확인하며 운영 부하·장시간 안정성·보안 검증을 대신하지 않습니다.',
-quiz=('Consumer Lag=0이면 항상 업무 처리 지연도 0초인가요?', ['그렇다','아니다. 커밋 위치와 업무 시간은 별도 지표다','Kafka에 메시지가 없다는 뜻이다'],1,'커밋 위치와 실제 업무 완료·시간 지연은 같은 지표가 아닙니다. 커밋 시점도 함께 확인해야 합니다.'),sources=['monitor','security','cconfig','consumer']),
-]
-
-
-LESSONS += [
-dict(id='05',level='중급',title='처리했는데 왜 또 들어올까?',short='수동 커밋과 전달 보장',minutes=50,
-desc='커밋 전후에 프로세스를 멈춰 중복과 누락의 원인을 재현합니다.',
-goals=['position과 committed offset을 구분한다','처리 전·후 커밋의 실패 구간을 찾는다','부분 처리 배치의 안전한 커밋 위치를 계산한다'],
-concept=[('읽은 위치와 복구 위치는 다릅니다','poll로 받은 레코드만큼 Consumer의 로컬 position은 진행됩니다. committed offset은 재시작이나 재할당 시 복구할 위치입니다. 레코드를 읽었다고 업무 처리가 끝났거나 복구 위치가 저장된 것은 아닙니다.'),('처리 후 커밋에는 재처리 구간이 있습니다','업무 처리 성공 → 커밋 전에 프로세스가 종료되면 이전 커밋부터 다시 읽습니다. 유효한 기록이 보관되어 있고 재시도 가능한 조건에서는 at least once 처리를 설계할 수 있지만, 부작용 중복을 막는 멱등 처리가 필요합니다.'),('처리 전 커밋에는 건너뛰는 구간이 있습니다','커밋 성공 → 업무 처리 전에 종료되면 재시작 시 해당 이벤트를 지나갑니다. 예제의 crash-before는 이 상태를 의도적으로 만듭니다. 이 동작을 재현한 뒤 같은 그룹으로 복구해 보세요.'),('배치 일부만 처리했으면 일부만 커밋합니다','poll이 offset 0~9를 반환했는데 0만 처리한 뒤 인자 없는 commitSync()를 호출하면 아직 처리하지 않은 위치까지 저장될 수 있습니다. 각 파티션의 처리 완료 구간 다음 위치를 명시합니다. offset 5까지 처리했으면 6을 커밋합니다.')],
-example='문자 발송 성공 후 offset 저장 전에 장애가 나면 문자가 다시 발송될 수 있습니다. Kafka가 업무 결과를 알지 못하므로 전송 결과, 커밋 위치, 수신 서비스의 중복 방지를 함께 설계합니다.',
-nodes=[('poll','로컬 position 이동',30,140),('업무 처리','DB / 외부 호출',330,140),('offset commit','다음 읽을 위치 저장',650,140),('실패 구간 A','처리 전 커밋 → 누락 가능',30,285),('실패 구간 B','처리 후 미커밋 → 재처리',650,285)],edges=[(0,1,'처리'),(1,2,'성공 후 커밋'),(0,3,'잘못된 선커밋'),(1,4,'이때 장애')],
-steps=['현재 committed offset=5, 다음 처리 대상은 offset 5입니다.','poll이 레코드를 반환해도 committed offset은 아직 5입니다.','업무 처리를 완료합니다.','이 시점에 장애가 나면 offset 5를 다시 읽습니다.','commit에 6을 저장하면 재시작 시 offset 6부터 이어 읽습니다.'],
-snippet=('공통/src/main/java/study/kafka/Settings.java','commit-one'),
-explain=['커밋 값은 처리한 offset 자체가 아니라 offset + 1입니다. leader epoch도 함께 전달합니다.','한 레코드마다 commitSync를 호출해 실패 구간을 명확히 보여줍니다. 운영에서는 안전한 완료 구간을 추적하면서 배치 커밋해 호출 비용을 줄일 수 있습니다.','Runtime.halt(17)은 shutdown 처리를 거치지 않는 의도된 장애입니다. exit 17과 PowerShell 오류는 이 실험의 예상 결과입니다.'],
-commands=[('미커밋 장애',r'.\실습\study.ps1 run commit crash-after commit-after-demo 1','PROCESSED 뒤 CRASH와 exit 17이 출력됩니다.'),('동일 그룹 복구',r'.\실습\study.ps1 run commit after commit-after-demo 1','직전 PROCESSED와 같은 partition/offset이 다시 처리됩니다.'),('선커밋 장애',r'.\실습\study.ps1 run commit crash-before commit-before-demo 1','처리할 partition/offset을 출력한 뒤, 업무 처리 전 exit 17로 종료합니다.'),('누락 관찰',r'.\실습\study.ps1 run commit after commit-before-demo 0','직전 CRASH 로그의 partition/offset이 처리되지 않는지 확인합니다.')],
-experiment=['실험용 새 group 이름으로 각 시나리오를 다시 실행하세요.','CommitLab의 로그는 업무 처리의 대역입니다. 실제 DB 쓰기와 커밋 사이의 실패는 다음 실습에서 관찰합니다.'],
-pitfall='자동 커밋을 끄기만 해서 at least once가 완성되지는 않습니다. 실패 시 미완료 레코드를 건너뛰지 않도록 종료·seek·재시도 전략이 필요합니다.',
-quiz=('파티션의 offset 12를 성공적으로 처리했다면 커밋할 값은?', ['11','12','13'],2,'committed offset은 다음에 읽을 위치이므로 13입니다.'),sources=['consumer','design']),
-
-dict(id='06',level='중급',title='중복되어도 결과는 한 번만',short='DB 트랜잭션과 업무 멱등성',minutes=60,
-desc='eventId의 유일성과 업무 갱신을 하나의 DB 트랜잭션으로 묶습니다.',
-goals=['Producer 멱등성과 Consumer 멱등성을 구분한다','중복 표식과 업무 갱신을 함께 커밋한다','DB 성공 후 장애에도 합계가 중복 증가하지 않게 한다'],
-concept=[('전달 중복과 업무 중복은 다른 문제입니다','정상적인 장애 복구 과정에서도 이벤트는 다시 들어올 수 있습니다. “한 번만 전달”을 가정하기보다 같은 eventId를 다시 처리해도 업무 결과가 변하지 않게 만듭니다. 이 예제는 주문 금액을 두 번 누적하지 않는 것을 목표로 합니다.'),('중복 표식만 먼저 저장하면 안 됩니다','eventId 저장 성공 후 업무 갱신이 실패하면 재처리 때 이미 처리한 이벤트로 오인합니다. 반대로 업무 갱신 후 별도로 표식을 저장하면 중복 갱신 구간이 생깁니다. 두 변경을 같은 DB 트랜잭션으로 묶습니다.'),('유일 제약은 동시 처리에도 적용됩니다','PRIMARY KEY(handler,event_id)와 INSERT ON CONFLICT DO NOTHING으로 첫 처리만 통과시킵니다. 표식의 handler는 같은 이벤트를 소비하는 서로 다른 업무를 구분합니다. 이 예제의 order-totals는 하나의 논리적 집계 업무입니다.'),('DB와 Kafka의 커밋은 여전히 별개입니다','DB 커밋 이후 Kafka offset 커밋 전 장애는 남습니다. 재처리 때 DB가 중복을 건너뛰므로 결과를 보호할 수 있습니다. 중복 표식의 보존 기간과 재처리 기간도 함께 설계해야 합니다. 외부 문자 API 호출은 이 DB 트랜잭션에 포함되지 않습니다.')],
-example='evt-001의 10,000원을 합계에 반영하고 DB 커밋한 뒤 종료합니다. 재시작해 evt-001을 다시 읽더라도 INSERT가 0건을 반환하므로 합계를 다시 올리지 않습니다.',
-nodes=[('Consumer','eventId로 처리',30,140),('UNIQUE 표식','handler + event_id',330,35),('금액 집계','첫 처리일 때만 갱신',650,35),('DB COMMIT','표식 + 금액을 함께 저장',650,245),('Kafka COMMIT','DB 성공 이후',30,285)],edges=[(0,1,'DB BEGIN'),(1,2,'inserted = 1'),(2,3,''),(1,3,'중복이면 건너뜀'),(3,4,'별도 커밋')],
-steps=['evt-001이 Consumer에 도착합니다.','DB 트랜잭션에서 eventId 표식을 삽입합니다.','삽입에 성공한 경우에만 업무 합계를 갱신합니다.','표식과 합계를 함께 DB 커밋합니다.','Kafka offset 저장 전에 장애가 나도 재처리 시 DUPLICATE_SKIPPED로 보호합니다.'],
-snippet=('중급/src/main/java/study/kafka/DedupStore.java','db-idempotency'),
-explain=['중복 이벤트의 inserted 값은 0입니다. 이 경우 합계를 갱신하지 않습니다.','INSERT와 집계 UPSERT가 같은 Connection에서 autoCommit=false로 실행됩니다. 예외 시 rollback합니다.','실제 서비스에서는 커넥션 풀, DB timeout, 락 경합, 보존 정책도 필요합니다. 예제는 트랜잭션 경계를 드러내기 위해 연결을 단순화했습니다.'],
-commands=[('DB 성공 후 종료',r'.\실습\study.ps1 run dedup dedup-crash-demo 1 crash-after-db','APPLIED 또는 기존 처리라면 DUPLICATE_SKIPPED 뒤 exit 17로 종료합니다.'),('동일 그룹 재시작',r'.\실습\study.ps1 run dedup dedup-crash-demo 1 normal','같은 eventId가 DUPLICATE_SKIPPED로 출력됩니다.'),('합계 관찰',r'.\실습\study.ps1 sql','processed event에 해당하는 합계가 한 번만 증가했는지 장애 전후 비교합니다.'),('전체 처리',r'.\실습\study.ps1 run dedup dedup-all 0 normal','기존 레코드를 모두 읽습니다. 이전에 처리한 eventId는 건너뜁니다.')],
-experiment=['같은 runId로 producer를 두 번 실행하고 서로 다른 offset의 동일 eventId를 확인하세요.','두 dedup Consumer를 같은 그룹으로 실행해도 DB 유일 제약이 적용되는지 확인하세요.'],
-pitfall='eventId를 재시도할 때마다 새로 발급하면 중복을 판별할 수 없습니다. 동일한 업무 이벤트에는 동일한 eventId를 유지해야 합니다. 새로운 정상 이벤트는 새로운 ID를 사용합니다.',
-quiz=('멱등 집계를 위해 같은 DB 트랜잭션에 포함할 것은?', ['중복 표식과 업무 합계 갱신','Kafka offset과 문자 발송 API','로그 출력만'],0,'DB가 원자적으로 커밋할 수 있는 중복 표식과 업무 변경을 함께 묶습니다.'),sources=['consumer','design','postgres']),
-
-dict(id='07',level='중급',title='실패한 메시지를 다루는 방법',short='제한된 재시도 · DLT',minutes=55,
-desc='일시 오류와 영구 오류를 나누고 실패 정보를 보존합니다.',
-goals=['재시도 가능한 실패를 구분한다','무한 재시도 대신 횟수와 시간을 제한한다','DLT 발행 실패 시 원본 offset을 커밋하지 않는다'],
-concept=[('모든 실패가 재시도로 해결되지는 않습니다','일시적인 연결 실패는 다시 시도할 가치가 있지만 잘못된 JSON이나 지원하지 않는 이벤트 버전은 같은 데이터를 반복해도 성공하지 않습니다. 코드의 RETRY_ONCE는 첫 시도만 실패하는 외부 서비스의 대역입니다.'),('재시도에는 비용과 순서 영향이 있습니다','같은 레코드를 잠시 기다리며 재시도하면 그 Consumer의 다른 처리가 지연됩니다. 이 실습은 최대 3회, 짧은 지수 대기로 제한합니다. 운영에서는 jitter, 총 시간 예산, 대상 시스템의 멱등 API, max.poll.interval.ms를 함께 검토합니다.'),('DLT는 실패를 관찰하고 복구하는 수단입니다','Dead Letter Topic에는 원본 값, key, source topic/partition/offset, 오류 종류와 시도 횟수를 저장합니다. 운영 DLT에는 개인정보가 포함될 수 있으므로 접근 권한과 보관 정책이 필요합니다.'),('DLT 발행과 원본 커밋 사이에도 구간이 있습니다','DLT ack 후 원본 offset 커밋 전에 장애가 나면 DLT에도 중복이 생길 수 있습니다. 이 예제는 그 구간을 숨기지 않습니다. source-position을 중복 식별자로 쓰거나 Kafka 트랜잭션으로 두 작업을 묶을 수 있습니다.')],
-example='잘못된 JSON 때문에 파티션 처리가 계속 막히는 대신, 실패 정보를 orders.dlt에 남기고 후속 레코드를 처리합니다. 복구 담당자는 원인 수정 후 원본 eventId를 유지하여 재발행하고 결과를 확인합니다.',
-nodes=[('orders.retry','실패 실험 전용 입력',30,140),('분류 / 처리','JSON 검증 + 업무 처리',330,140),('일시 실패','최대 3회 · 짧은 대기',650,25),('영구 / 소진 실패','원본 + 오류 정보',650,260),('orders.dlt','ack 후 원본 커밋',330,285)],edges=[(0,1,''),(1,2,'retry'),(2,1,'재시도'),(1,3,'검증 실패'),(3,4,'실패 기록')],
-steps=['실습용 입력 3건: 일시 실패 1건, 영구 실패 2건을 보냅니다.','일시 실패는 짧게 대기한 뒤 다시 처리합니다.','JSON 또는 필수 값 오류는 즉시 영구 오류로 분류합니다.','원본 위치와 오류 정보를 DLT에 보내고 ack를 기다립니다.','처리 성공 또는 DLT 발행 성공 뒤 원본 offset을 커밋합니다.'],
-snippet=('중급/src/main/java/study/kafka/RetryConsumer.java','bounded-retry'),
-explain=['재시도 입력은 orders.retry로 격리해 orders를 사용하는 다른 실습을 오염시키지 않습니다. 이 토픽은 지연 재시도 큐가 아니라 테스트 입력입니다.','의도적으로 만든 TransientFailure만 재시도합니다. 실제 서비스에서는 예외 분류를 명시적으로 설계합니다.','DLT send().get()이 실패하면 커밋 줄에 도달하지 않고 종료합니다. 재실행 시 원본을 다시 읽습니다.'],
-commands=[('실패 이벤트 3건 준비',r'.\실습\study.ps1 run poison','SEEDED 3 records가 출력됩니다.'),('처리',r'.\실습\study.ps1 run retry retry-day07 3','SUCCESS attempt=2가 1건, DLT 로그가 2건 출력됩니다.'),('실패 기록 보기',r'.\실습\study.ps1 run consumer dlt-reader-day07 0 orders.dlt','sourceOffset, rawValue, error, attempts를 확인합니다.')],
-experiment=['poison을 반복했다면 max=3은 누적 데이터 중 앞 3건만 처리합니다. max=0으로 모두 읽어 차이를 확인하세요.','잘못된 데이터를 무조건 정상 토픽에 돌려보내는 무한 재처리 구조의 문제를 적어보세요.'],
-pitfall='DLT로 보냈다는 이유로 장애가 해결되는 것은 아닙니다. 알람, 담당자, 원인 분석, 재처리 절차와 중복 방지가 필요합니다. topic 단위 재시도는 원래 key의 처리 순서를 바꿀 수 있습니다.',
-quiz=('DLT 전송이 실패했을 때 원본 offset은?', ['커밋하고 다음 메시지로 이동한다','커밋하지 않고 복구 전략을 따른다','항상 0으로 초기화한다'],1,'실패 기록도 저장하지 못한 상태에서 원본을 넘기면 복구할 정보를 잃을 수 있습니다.'),sources=['consumer','producer']),
-
-dict(id='08',level='중급',title='브로커 하나가 멈춘다면?',short='Replication · ISR · KRaft',minutes=65,
-desc='3개 브로커로 Leader 교체와 쓰기 가용성의 조건을 관찰합니다.',
-goals=['데이터 복제와 Consumer 분담을 구분한다','acks=all과 min.insync.replicas를 함께 설명한다','한 노드 중단과 두 노드 중단의 차이를 이해한다'],
-concept=[('파티션마다 Leader와 복제본이 있습니다','Producer와 Consumer는 메타데이터로 파티션 Leader를 찾습니다. Follower는 Leader의 로그를 복제합니다. 복제 수 3은 데이터 복제본 3개라는 뜻이며, 같은 그룹이 이벤트를 3번 업무 처리한다는 의미가 아닙니다.'),('ISR은 현재 동기화된 복제본 집합입니다','acks=all은 현재 ISR에 포함된 복제본의 확인 조건입니다. min.insync.replicas=2이면 쓰기를 받아들이기 위해 적어도 2개의 ISR이 필요합니다. 복제 수만 3으로 놓고 최소 ISR을 고려하지 않으면 기대한 내구성과 다를 수 있습니다.'),('KRaft의 메타데이터 합의도 필요합니다','Controller quorum은 클러스터 메타데이터를 관리합니다. 이 실습의 3개 노드는 broker와 controller 역할을 겸합니다. 한 노드 장애는 과반을 유지하지만 두 노드를 중단하면 controller 과반도 잃습니다. 따라서 두 노드 중단 결과를 ISR 조건 하나만으로 해석하지 마세요.'),('학습용 combined 구성입니다','운영 중요도가 높은 환경에서는 controller와 broker 역할 분리, 장애 도메인 분산, 디스크·네트워크·복구 시간·백업·보안까지 검토합니다. 여기서는 로컬 한 PC의 컨테이너 3개로 동작을 관찰하며 실제 머신 장애 격리를 재현하지 않습니다.')],
-example='orders의 특정 파티션 Leader가 kafka1이라면 kafka1을 중단하고 새 Leader와 ISR을 확인합니다. 모든 파티션이 kafka1을 Leader로 쓰는 것은 아니므로 실제 describe 결과에 따라 중단 노드를 고릅니다.',
-nodes=[('Producer','acks = all',30,140),('Leader','ISR 중 1개',330,140),('Follower B','동기화 복제',650,35),('Follower C','동기화 복제',650,245),('Controller quorum','메타데이터 · 과반 합의',30,290)],edges=[(0,1,'write / ack'),(1,2,'replicate'),(1,3,'replicate'),(4,1,'리더 관리')],
-steps=['복제 수 3, 최소 ISR 2인 토픽을 만듭니다.','Leader가 레코드를 받아 Follower에 복제합니다.','노드 하나가 중단됩니다. Controller quorum 과반은 유지됩니다.','필요 시 Leader가 교체되고 ISR은 2개로 줄어듭니다.','남은 ISR이 최소 조건을 만족하면 전송이 계속됩니다. 정상 노드 복구 후 ISR 회복을 확인합니다.'],
-snippet=('초급/src/main/java/study/kafka/TopicAdmin.java','topic-create'),
-explain=['-Cluster 실행 시 REPLICATION_FACTOR=3이 주입되며 사용자 토픽의 min.insync.replicas는 2입니다.','offsets와 transaction state 내부 토픽도 클러스터 환경에서는 복제 수 3으로 구성했습니다.','INTERNAL은 Docker 서비스 주소, EXTERNAL은 호스트 localhost 주소입니다. advertised.listeners는 클라이언트가 실제 도달할 수 있는 주소여야 합니다.'],
-commands=[('3노드 환경 시작',r'.\실습\study.ps1 up -Cluster','kafka1~3과 postgres가 healthy가 됩니다. PC 자원이 충분해야 합니다.'),('클러스터 토픽 생성',r'.\실습\study.ps1 init -Cluster','복제 수 3, ISR 3인 토픽을 확인합니다.'),('Leader 조회',r'.\실습\study.ps1 topics -Cluster','orders 파티션별 Leader ID를 기록합니다.'),('한 노드 중단',r'.\실습\study.ps1 stop kafka1','예시로 kafka1을 중단합니다. 실제 Leader가 다른 노드라면 그 노드를 선택하세요.'),('장애 중 전송',r'.\실습\study.ps1 run -Cluster producer 6 orders failover-demo','메타데이터 갱신 후 전송 성공 여부와 일시 재시도 로그를 관찰합니다.'),('복구',r'.\실습\study.ps1 start kafka1','잠시 후 topics -Cluster로 ISR이 회복되는지 확인합니다.')],
-experiment=['single과 cluster는 서로 다른 로그 볼륨을 사용합니다. cluster의 그룹과 토픽은 별도로 시작합니다.','두 노드 중단은 controller 과반도 잃으므로 별도의 복구 실험으로 구분하세요. 반드시 중단한 노드를 모두 start로 복구합니다.'],
-pitfall='초급 토픽이 들어 있는 single Kafka와 3노드 cluster는 별도 클러스터입니다. -Cluster를 빠뜨리면 다른 환경을 조회하거나 실행합니다. PostgreSQL은 공용이므로 DB 중복 표식은 환경 전환 후에도 남습니다.',
-quiz=('acks=all에서 all이 가리키는 대상은?', ['항상 클러스터의 모든 브로커','현재 ISR에 속한 복제본의 확인 조건','모든 Consumer의 업무 완료'],1,'현재 ISR과 min.insync.replicas를 함께 해석해야 합니다.'),sources=['design','pconfig','kraft']),
-]
-
-for lesson in LESSONS:
-    if lesson['id'] == '02':
-        lesson['concept'].extend([
-            ('로그와 세그먼트로 저장합니다','파티션 로그는 여러 세그먼트 파일로 나뉘고 새 레코드는 끝에 추가됩니다. 순차 쓰기, 운영체제 페이지 캐시, 네트워크 배치 같은 설계가 처리 효율에 기여합니다. 디스크에 저장한다고 항상 느리거나, 메모리에만 저장한다고 가정하지 않습니다.'),
-            ('소비와 데이터 정리는 별개입니다','cleanup.policy=delete에서는 시간·크기 보관 정책에 따라 오래된 세그먼트를 정리합니다. compact는 key별 최신 상태를 유지하는 용도로 쓰며 정리가 비동기이므로 같은 key의 과거 레코드가 즉시 사라지는 것은 아닙니다. 이 실습은 기본 delete 정책으로 재처리를 관찰합니다.'),
-        ])
-        lesson['sources'].append('design')
-    if lesson['id'] == '04':
-        lesson['concept'].append(('배치와 압축으로 전송 효율을 조절합니다','비동기 예제는 linger.ms=5, batch.size=32768, compression.type=lz4를 사용합니다. 잠시 기다려 같은 파티션의 레코드를 묶고 전송 바이트를 줄일 수 있지만 지연과 CPU 비용도 달라집니다. 빠른 입력에 대한 애플리케이션 대기열 제한도 함께 구현합니다. 이 값은 출발점이며 운영 최적값이 아닙니다.'))
-        lesson['commands'].insert(-1,('비동기 결과와 대기열 제한',r'.\실습\study.ps1 run producer-async 12 orders day04-async','ASYNC_ACK 12줄이 출력됩니다. 파티션 간 callback 출력 순서는 다를 수 있습니다.'))
-
+LESSONS = [importlib.import_module(f'content.lesson_{n:02d}').LESSON for n in range(1, 13)]
 LESSONS.sort(key=lambda item: item['id'])
+
+try:
+    from content.appendix import APPENDICES
+except ImportError:  # 부록 작성 전에도 빌드할 수 있게 합니다.
+    APPENDICES = []
